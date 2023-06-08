@@ -116,11 +116,15 @@ impl Environment {
         }
 
     }
+
     pub fn to_semantic_token(&self, semantic_tokens: &mut Vec<tower_lsp::lsp_types::SemanticToken>, pre_line: &mut u32, pre_start: &mut u32, parser: &Parser) {
         semantic_tokens.push(get_range_token(&self.start.get_range(), 7, pre_line, pre_start, parser));
+
+        MadParam::to_semantic_token(&self.args, semantic_tokens, pre_line, pre_start, parser);
         for expr in self.expressions.iter() {
             expr.to_semantic_token(semantic_tokens, pre_line, pre_start, parser);
         }
+
         semantic_tokens.push(get_range_token(&self.end.get_range(), 7, pre_line, pre_start, parser));
     }
 }

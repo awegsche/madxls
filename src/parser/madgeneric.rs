@@ -156,14 +156,8 @@ impl MadGeneric {
     pub fn to_semantic_token(&self, semantic_tokens: &mut Vec<tower_lsp::lsp_types::SemanticToken>, pre_line: &mut u32, pre_start: &mut u32, parser: &Parser) {
         if let Token::Ident(range) = self.name {semantic_tokens.push(get_range_token(&range, 4, pre_line, pre_start, parser));}
 
-        for arg in self.args.iter() {
-            if !arg.valid {continue;}
-            let range = arg.attribute.get_range();
-            semantic_tokens.push(get_range_token(&arg.attribute, 5, pre_line, pre_start, parser));
-            if let Some(value) = &arg.value {
-                value.to_semantic_token(semantic_tokens, pre_line, pre_start, parser);
-            }
-        }
+        MadParam::to_semantic_token(&self.args, semantic_tokens, pre_line, pre_start, parser);
+
     }
 }
 
@@ -212,6 +206,17 @@ impl MadParam {
         None
     }
 
+    pub fn to_semantic_token(args: &[Self], semantic_tokens: &mut Vec<tower_lsp::lsp_types::SemanticToken>, pre_line: &mut u32, pre_start: &mut u32, parser: &Parser) { 
+        for arg in args.iter() {
+            if !arg.valid {continue;}
+            let range = arg.attribute.get_range();
+            semantic_tokens.push(get_range_token(&arg.attribute, 5, pre_line, pre_start, parser));
+            if let Some(value) = &arg.value {
+                value.to_semantic_token(semantic_tokens, pre_line, pre_start, parser);
+            }
+        }
+    }
+
     pub fn get_range(&self) -> (CursorPosition, CursorPosition) {
         let start = if let Some(sign) = &self.sign {
             sign.get_range().0
@@ -236,7 +241,8 @@ impl MadParam {
                 parser.advance();
                 //let param = MadParam::parse(parser)?;
                 if let Some(mut param) = MadParam::parse(parser) {
-                    if match_params.contains(&parser.get_element_bytes(&param.attribute).to_vec()) {
+                    if match_params.contains(&parser.get_element_bytes(&param.attribute)
+                                             .to_ascii_lowercase().to_vec()) {
                         param.valid = true;
                     }
                     args.push(param);

@@ -49,15 +49,36 @@ pub const GENERIC_BUILTINS: Lazy<HashMap<&'static [u8], MadGenericBuilder>> = La
                            "positron", "electron", "proton", "antiproton", "posmuon", "negmuon", "ion"]);
     insert_generic_builder(&mut builtins, b"resbeam", &["sequence"]);
     insert_generic_builder(&mut builtins, b"chdir", &["dir"]);
-    insert_generic_builder(&mut builtins, b"rbend", &["L", "ANGLE", "TILT",
-                           "K0", "K0S",
-                           "K1", "K1S",
-                           "K2", "K2S",
-                           "E1", "E2",
-                           "FINT", "FINTX",
-                           "HGAP", "H1", "H2",
-                           "THICK", "ADD_ANGLE", "KILL_ENT_FRINGE"
+
+    // ---- lattice elements -----------------------------------------------------------------------
+    insert_generic_builder(&mut builtins, b"rbend", &["l", "angle", "tilt",
+                           "k0", "k0s", "k1", "k1s", "k2", "k2s", "e1", "e2", "fint", "fintx",
+                           "hgap", "h1", "h2", "thick", "add_angle", "kill_ent_fringe"
     ]);
+    insert_generic_builder(&mut builtins, b"rbend", &["l", "angle", "tilt",
+                           "k0", "k0s", "k1", "k1s", "e1", "e2", "fint", "fintx",
+                           "hgap", "h1", "h2", "thick", "kill_ent_fringe"
+    ]);
+    insert_generic_builder(&mut builtins, b"drift", &["l"]);
+    insert_generic_builder(&mut builtins, b"dipedge", &["h", "e1", "fint", "hgap", "tilt"]);
+    insert_generic_builder(&mut builtins, b"quadrupole", &["l", "k1", "k1s", "tilt", "thick"]);
+    insert_generic_builder(&mut builtins, b"sextupole", &["l", "k2", "k2s", "tilt"]);
+    insert_generic_builder(&mut builtins, b"octupole", &["l", "k3", "k3s", "tilt"]);
+    insert_generic_builder(&mut builtins, b"multipole", &["lrad", "knl", "ksl", "tilt"]);
+    insert_generic_builder(&mut builtins, b"solenoid", &["l", "ks", "ksi"]);
+    insert_generic_builder(&mut builtins, b"nllens", &["knll", "kcll"]);
+    insert_generic_builder(&mut builtins, b"hkicker", &["l", "tilt", "sinkick", "kick", "sintune", "sinpeak", "sinphase"]);
+    insert_generic_builder(&mut builtins, b"vkicker", &["l", "tilt", "sinkick", "kick", "sintune", "sinpeak", "sinphase"]);
+    insert_generic_builder(&mut builtins, b"kicker", &["l", "hkick", "vkick", "tilt"]);
+    insert_generic_builder(&mut builtins, b"rfcavity", &["l", "volt", "lag", "freq", "harmon", "n_bessel", "no_cavity_totalpath"]);
+    insert_generic_builder(&mut builtins, b"twcavity", &["l", "volt", "lag", "freq", "psi", "delta_lag"]);
+    insert_generic_builder(&mut builtins, b"crabcavity", &["l", "volt", "lag", "freq", "harmon",
+                           "rv1", "rv2", "rv3", "rv4", "rph1","rph2", "lagf"]);
+    insert_generic_builder(&mut builtins, b"hacdipole", &["l", "volt", "lag", "freq", "ramp1","ramp2","ramp3","ramp4", ]);
+    insert_generic_builder(&mut builtins, b"vacdipole", &["l", "volt", "lag", "freq", "ramp1","ramp2","ramp3","ramp4", ]);
+    insert_generic_builder(&mut builtins, b"rfmultipole", &["l", "volt", "lag", "freq", "harmon", "lrad", "tilt",
+                           "knl", "ksl", "pnl", "psl"]);
+
 
     builtins  
 });

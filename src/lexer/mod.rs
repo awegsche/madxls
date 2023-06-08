@@ -389,7 +389,7 @@ mod tests {
 
     #[test]
     fn match_test_madx() {
-        let lexer = Lexer::from_bytes(include_bytes!("../../test.madx").to_vec());
+        let lexer = Lexer::from_bytes(include_bytes!("../../tests/test.madx").to_vec());
         let tokens = lexer.get_tokens();
 
         let made_it = lexer.format_token(tokens.last().unwrap());

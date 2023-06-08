@@ -6,13 +6,13 @@ use super::{Expression, Parser, Assignment};
 
 #[derive(Debug, PartialEq, Default)]
 pub struct Macro {
-    name: Token,
-    parenopen: CursorPosition,
-    args: Vec<Token>,
-    parenclose: CursorPosition,
-    macro_pos: Token,
-    body: Vec<Expression>,
-    end: CursorPosition,
+    pub name: Token,
+    pub parenopen: CursorPosition,
+    pub args: Vec<Token>,
+    pub parenclose: CursorPosition,
+    pub macro_pos: Token,
+    pub body: Vec<Expression>,
+    pub end: CursorPosition,
 }
 
 

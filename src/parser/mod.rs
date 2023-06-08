@@ -100,6 +100,11 @@ impl Parser {
                     self.get_element_bytes(&*assignment.lhs).to_vec(),
                     self.elements.len());
                 },
+                Expression::Macro(m) => {
+                    self.labels.insert(
+                        self.get_element_bytes(&m.name).to_vec(),
+                        self.elements.len());
+                },
                 _ => { }
             }
             self.elements.push(expr);

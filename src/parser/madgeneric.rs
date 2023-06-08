@@ -204,6 +204,33 @@ impl MadParam {
         };
         (start, end)
     }
+
+    pub fn parse_params(parser: &mut Parser, match_params: &Vec<Vec<u8>>) -> Vec<Self> {
+        let mut args = Vec::new();
+        while let Some(token) = parser.peek_token() {
+            if let Token::SemiColon(_) = token {
+                return args;
+            }
+            if let Token::Komma(_) = token {
+                parser.advance();
+                //let param = MadParam::parse(parser)?;
+                if let Some(mut param) = MadParam::parse(parser) {
+                    if match_params.contains(&parser.get_element_bytes(&param.attribute).to_vec()) {
+                        param.valid = true;
+                    }
+                    args.push(param);
+                }
+                else {
+                    break;
+                }
+            }
+            else {
+                // this is actually an error state, but we continue for the moment
+                parser.advance();
+            }
+        }
+        args
+    }
 }
 
 // ---- MadGenericBuilder --------------------------------------------------------------------------
@@ -221,28 +248,8 @@ impl MadGenericBuilder {
                 args: Vec::new(),
             };
 
-            while let Some(token) = parser.peek_token() {
-                if let Token::SemiColon(_) = token {
-                    return Some(mad);
-                }
-                if let Token::Komma(_) = token {
-                    parser.advance();
-                    //let param = MadParam::parse(parser)?;
-                    if let Some(mut param) = MadParam::parse(parser) {
-                        if self.match_params.contains(&parser.get_element_bytes(&param.attribute).to_vec()) {
-                            param.valid = true;
-                        }
-                        mad.args.push(param);
-                    }
-                    else {
-                        break;
-                    }
-                }
-                else {
-                    // this is actually an error state, but we continue for the moment
-                    parser.advance();
-                }
-            }
+            mad.args = MadParam::parse_params(parser, &self.match_params);
+
             return Some(mad);
         }
         None

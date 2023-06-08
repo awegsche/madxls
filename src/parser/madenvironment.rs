@@ -5,16 +5,54 @@ use tower_lsp::lsp_types::{CompletionItem, CompletionItemKind};
 
 use crate::{lexer::{Token, HasRange, CursorPosition}, semantic_tokens::{get_range_token}, error::UTF8_PARSER_MSG};
 
-use super::{Expression, MadGenericBuilder, Parser, insert_generic_builder};
+use super::{Expression, MadGenericBuilder, Parser, insert_generic_builder, MadParam};
 
 pub const GENERIC_ENVS: Lazy<HashMap<&'static [u8], EnvironmentBuilder>> = Lazy::new(|| {
     let mut envs = HashMap::new();
 
-    insert_generic_env(&mut envs, b"seqedit", b"endedit", &[
-                       ("flatten", &[]),
-                       ("cycle", &["start"]),
-                       ("install", &["element", "class", "at", "from", "selected"])
-    ]);
+    insert_generic_env(
+        &mut envs, b"seqedit", b"endedit",
+        &[
+        ("flatten", &[]),
+        ("cycle", &["start"]),
+        ("install", &["element", "class", "at", "from", "selected"])
+        ],
+        &["sequence"]
+        );
+
+    insert_generic_env(
+        &mut envs, b"match", b"endmatch",
+        &[
+        ("vary", &["name", "step", "lower", "upper", "slope", "opt"]),
+        ("contraint", &["sequence", "range",
+         "betx", "alfx", "mux", "bety", "alfy", "muy", "x", "px", "y", "py", "dx", "dy", "dpx", "dpy"
+        ]),
+         ("global", &["sequence", "q1", "q2", "dq1", "dq2"]),
+         ("weight", &["betx", "alfx", "mux", "bety", "alfy", "muy", "x", "px", "y", "py", "dx", "dy", "dpx", "dpy"]),
+         ("lmdif", &["calls", "tolerance"]),
+         ("migrad", &["calls", "tolerance", "strategy"]),
+         ("simplex", &["calls", "tolerance"]),
+         ("jacobian", &["calls", "tolerance", "repeat", "strategy", "cool", "balance", "random"]),
+        ],
+         &["sequence", "betx", "alfx", "mux", "bety", "alfy", "muy", "x", "px", "y", "py", "dx", "dy", "dpx", "dpy",
+         "deltap", "slow"]
+         );
+
+    insert_generic_env(
+        &mut envs, b"track", b"endtrack",
+        &[
+        ("start", &[
+         "x", "px", "y", "py", "t", "pt",
+         "fx", "phix", "fy", "phiy", "ft", "phit",
+        ]),
+        ("observe", &["place"]),
+        ("run", &["turns", "maxaper", "ffile", "keeptrack"]),
+        ("dynap", &["turns", "fastune", "lyapunov", "maxaper", "orbit"]),
+        ],
+        &[
+        "deltap", "onepass", "damp", "quantum", "seed", "update", "onetable", "recloss", "file",
+        "aperture"
+        ]);
 
     envs
 });
@@ -23,20 +61,23 @@ pub const GENERIC_ENVS: Lazy<HashMap<&'static [u8], EnvironmentBuilder>> = Lazy:
 pub fn insert_generic_env(map: &mut HashMap<&'static [u8], EnvironmentBuilder>,
                           match_start: &'static [u8],
                           match_end: &'static [u8],
-                          generic_builders: &[(&'static str, &[&str])]) {
+                          generic_builders: &[(&'static str, &[&str])],
+                          match_params: &[&str]) {
 
     let mut genericmap = HashMap::new();
 
     for words in generic_builders {
         insert_generic_builder(&mut genericmap, words.0.as_bytes(), words.1);
     }
+    let match_params = match_params.into_iter().map(|x| x.as_bytes().to_vec()).collect::<Vec<_>>();
 
-    map.insert(match_start, EnvironmentBuilder::new(match_start, match_end, genericmap));
+    map.insert(match_start, EnvironmentBuilder::new(match_start, match_end, genericmap, match_params));
 }
 
 #[derive(Debug, PartialEq, Default)]
 pub struct Environment {
     match_start: &'static [u8],
+    args: Vec<MadParam>,
     start: Token,
     end: Token,
     expressions: Vec<Expression>,
@@ -46,6 +87,7 @@ pub struct EnvironmentBuilder {
     match_start: &'static [u8],
     match_end: &'static [u8],
     generic_builders: HashMap<&'static [u8], MadGenericBuilder>,    
+    match_params: Vec<Vec<u8>>,
 }
 
 impl Environment {
@@ -91,11 +133,14 @@ impl HasRange for Environment {
 
 
 impl EnvironmentBuilder {
-    pub fn new(match_start: &'static [u8], match_end: &'static [u8], generic_builders: HashMap<&'static [u8], MadGenericBuilder>) -> Self {
+    pub fn new(match_start: &'static [u8], match_end: &'static [u8],
+               generic_builders: HashMap<&'static [u8], MadGenericBuilder>,
+               match_params: Vec<Vec<u8>>) -> Self {
         Self {
             match_start,
             match_end,
             generic_builders,
+            match_params,
         }
     }
 
@@ -108,6 +153,8 @@ impl EnvironmentBuilder {
             env.match_start = self.match_start;
             env.start = name;
             parser.advance();
+
+            env.args = MadParam::parse_params(parser, &self.match_params);
 
             'l: loop {
                 for (_, local) in self.generic_builders.iter() {

@@ -40,6 +40,7 @@ async fn main() {
 
     if let Some(file) = args.debug_file {
         debug::print_ast(file);
+        return;
     }
 
     //return;

@@ -1,4 +1,4 @@
-use std::{path::Path, io, fmt::{Display}, ops::AddAssign};
+use std::{path::Path, io, fmt::{Display}, ops::AddAssign, borrow::Cow};
 
 pub mod token;
 pub mod cursor;
@@ -19,6 +19,13 @@ impl HasRange for (CursorPosition, CursorPosition) {
         (self.0, self.1)
     }
 }
+
+impl HasRange for &(CursorPosition, CursorPosition) {
+    fn get_range(&self) -> (CursorPosition, CursorPosition) {
+        **self
+    }
+}
+
 
 #[derive(Debug)]
 pub struct Lexer {
@@ -92,6 +99,10 @@ impl Lexer {
 
     pub fn get_token_bytes(&self, token: &Token) -> &[u8] {
         self.get_range_bytes(token)
+    }
+
+    pub fn get_range_str<R: HasRange>(&self, token: &R) -> Cow<str> {
+        String::from_utf8_lossy(self.get_range_bytes(token))
     }
 
     pub fn format_position(&self, pos: &CursorPosition) -> String {

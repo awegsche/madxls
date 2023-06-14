@@ -27,7 +27,9 @@ pub fn print_ast(file: String) {
 
     println!("done");
 
-    //println!("{:#?}", semantic_tokens);
+    println!("{:#?}", parser.lexer.get_tokens());
+
+    println!("{:#?}", semantic_tokens);
 
 }
 

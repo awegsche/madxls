@@ -142,7 +142,7 @@ impl Macro {
 
 impl HasRange for Macro {
     fn get_range(&self) -> (CursorPosition, CursorPosition) {
-        (self.name.get_range().0, self.end)
+        (self.name.get_range().0, self.end+1)
     }
 }
 
@@ -159,7 +159,9 @@ mod tests {
         let m = &parser.get_elements()[0];
 
         if let Expression::Macro(m) = m {
-            assert_eq!(parser.get_element_bytes(&m.name), b"m1");
+            assert_eq!(parser.get_element_str(&m.name), "m1");
+            assert_eq!(parser.get_element_str(m), "m1(a, b): macro = {\n twiss,sequence=lhcb1;\na=b;\n}");
+
             //assert!(false, "m: {:?}\n\n element after:\n{:?}", m, parser.get_elements()[1]);
         } 
         else {

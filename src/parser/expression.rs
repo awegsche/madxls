@@ -111,6 +111,11 @@ impl Expression {
         match self {
             Self::String(range) =>semantic_tokens.push(get_range_token(range, 0, pre_line, pre_start, parser)),
             Self::TokenExp(Token::Comment(range)) => semantic_tokens.push(get_range_token(range, 2, pre_line, pre_start, parser)),
+            Self::TokenExp(Token::MultilineComment(lines)) => {
+                for range in lines.iter() {
+                    semantic_tokens.push(get_range_token(range, 2, pre_line, pre_start, parser));
+                }
+            },
             Self::Macro(m) => m.to_semantic_token(semantic_tokens, pre_line, pre_start, parser),
             Self::Label(label) => {
                 semantic_tokens.push(get_range_token(&label.name, 6, pre_line, pre_start, parser));

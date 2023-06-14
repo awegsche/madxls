@@ -24,7 +24,7 @@ pub const GENERIC_ENVS: Lazy<HashMap<&'static [u8], EnvironmentBuilder>> = Lazy:
         &mut envs, b"match", b"endmatch",
         &[
         ("vary", &["name", "step", "lower", "upper", "slope", "opt"]),
-        ("contraint", &["sequence", "range",
+        ("constraint", &["sequence", "range",
          "betx", "alfx", "mux", "bety", "alfy", "muy", "x", "px", "y", "py", "dx", "dy", "dpx", "dpy"
         ]),
          ("global", &["sequence", "q1", "q2", "dq1", "dq2"]),
@@ -51,7 +51,7 @@ pub const GENERIC_ENVS: Lazy<HashMap<&'static [u8], EnvironmentBuilder>> = Lazy:
         ],
         &[
         "deltap", "onepass", "damp", "quantum", "seed", "update", "onetable", "recloss", "file",
-        "aperture"
+        "aperture", "dump"
         ]);
 
     envs
@@ -149,13 +149,15 @@ impl EnvironmentBuilder {
     }
 
     pub fn parse(&self, parser: &mut Parser) -> Option<Environment> {
-        if let Some(name) = parser.peek_token().cloned() {
+        if let Some(Token::Ident(name)) = parser.peek_token() {
             let mut env = Environment::default();
-            if !parser.lexer.compare_range(&name, self.match_start) {
+
+            if !parser.lexer.compare_range(name, self.match_start) {
                 return None;
             }
+            
             env.match_start = self.match_start;
-            env.start = name;
+            env.start = Token::Ident(*name);
             parser.advance();
 
             env.args = MadParam::parse_params(parser, &self.match_params);

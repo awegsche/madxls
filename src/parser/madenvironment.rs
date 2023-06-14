@@ -168,9 +168,9 @@ impl EnvironmentBuilder {
                     }
                 }
                 if let Some(expr) = Expression::parse(parser) {
-                    if let Expression::TokenExp(end) = expr {
-                        if parser.lexer.compare_range(&end, self.match_end) {
-                            env.end = end;
+                    if let Expression::TokenExp(end) = &expr {
+                        if parser.lexer.compare_range(end, self.match_end) {
+                            env.end = end.clone();
                             return Some(env);
                         }
                     }

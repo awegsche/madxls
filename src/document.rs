@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::{SemanticTokensResult, SemanticTokens, Position, CompletionResponse, CompletionItem, CompletionItemKind};
 
@@ -8,17 +10,22 @@ use crate::parser::{Parser, GENERIC_BUILTINS, Expression};
 #[derive(Debug)]
 pub struct Document {
     pub parser: Parser,
+    pub included_labels: HashMap<Vec<u8>, usize>,
 }
 
 impl Document {
     pub fn new(text: &[u8]) -> Self {
+        let mut parser = Parser::from_bytes(text.to_vec());
+        let included_labels = parser.scan_includes();
         Self {
-            parser: Parser::from_bytes(text.to_vec()),
+            parser,
+            included_labels
         }
     }
 
     pub fn reload(&mut self, text: &[u8]) {
         self.parser = Parser::from_bytes(text.to_vec());
+        //self.parser.scan_includes();
     }
 
     pub fn get_semantic_tokens(&self) -> Result<Option<SemanticTokensResult>> {
@@ -33,7 +40,7 @@ impl Document {
                 break;
             }
         }
-        log::info!("data: {:#?}", data);
+        //log::info!("data: {:#?}", data);
 
         let tokens = Some(SemanticTokensResult::Tokens(
                     SemanticTokens{ 
@@ -55,6 +62,15 @@ impl Document {
         }
         log::debug!("labels.len() = {}", self.parser.labels.len());
         for label in self.parser.labels.keys() {
+            items.push(CompletionItem{
+                label: String::from_utf8(label.clone()).unwrap_or_else(|_| {UTF8_PARSER_MSG.to_string()}),
+                kind: Some(CompletionItemKind::VARIABLE),
+                ..Default::default()
+            });
+
+        }
+
+        for label in self.included_labels.keys() {
             items.push(CompletionItem{
                 label: String::from_utf8(label.clone()).unwrap_or_else(|_| {UTF8_PARSER_MSG.to_string()}),
                 kind: Some(CompletionItemKind::VARIABLE),
@@ -94,6 +110,47 @@ mod tests {
     }
 
     #[test]
+    fn test_macros() {
+        let elements = vec![
+            "// test file", ";",
+            "/* this is a multiline comment\n* explaining what the macro does\n* in a very detailed way */",
+            "do_twiss(filename): macro = {\n  twiss, sequence=lhcb1;\n}",
+            ";",
+        ];
+        let doc = Document::new(elements.join("\n").as_bytes());
+        let expressions = doc.parser.get_elements();
+
+        assert_eq!(doc.parser.get_element_str(&expressions[0]), elements[0]);
+        assert_eq!(doc.parser.get_element_str(&expressions[2]), elements[2]);
+        if let Expression::Macro(m) = &expressions[3] {
+            assert_eq!(doc.parser.get_element_str(m), elements[3]);
+            
+        }
+        else {
+            assert!(false, "exprected macro, got: {:?}\nrange: {}", expressions[3], doc.parser.get_element_str(&expressions[3]));
+        }
+    }
+
+    #[test]
+    fn test_file_lhc_macros() {
+        let doc = Document::new(include_bytes!("../tests/macros/lhc.macros.run3.madx"));
+
+
+    }
+
+    /// this test loads a job file created by our model creation, including omc3 macros and the
+    /// entire lattice definition
+    /// If this test runs through, most of the functionality used for creating an lhc job should be
+    /// fine
+    #[test]
     fn test_modelcreation() {
+        let document = Document::new(include_bytes!("../tests/job.create_model.madx"));
+
+
+        // now, what do we expect?
+        // lhcb1/2 should be defined
+        //
+        assert!(document.parser.labels.contains_key(&b"lhcb1".to_vec()), "lhcb1 not defined");
+        assert!(document.parser.labels.contains_key(&b"lhcb2".to_vec()), "lhcb2 not defined");
     }
 }

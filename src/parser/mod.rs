@@ -26,7 +26,7 @@ pub struct Parser {
     pub lexer: Lexer,
     elements: Vec<Expression>,
     pub labels: HashMap<Vec<u8>, usize>,
-    position: usize,
+    pub position: usize,
 }
 
 pub const LEGEND_TYPE: &[SemanticTokenType] = &[
@@ -87,22 +87,59 @@ impl Parser {
         self.parse_elements();
     }
 
+    pub fn scan_includes(&self) -> HashMap<Vec<u8>, usize> {
+        log::info!("scanning includes");
+        let mut labels = HashMap::new();
+        let included_labels: Vec<_> =  self.elements.iter().filter_map(|e| match e {
+            Expression::MadGeneric(g) => {
+                if g.match_name == b"call" {
+                    Some(g)
+                } else {
+                    None
+                }
+            },_ => None
+        })
+        .filter_map(|g| g.args[0].value.as_ref())
+            .filter_map(|arg| String::from_utf8(self.get_element_bytes(&**arg)[1..].to_vec()).ok())
+            .filter_map(|filename| {log::info!("try include {}", filename); std::path::Path::new(&filename).canonicalize().ok() })
+            .filter_map(|filename| {
+                if let Some(fname) = filename.extension() {
+                    if fname == "mad" || fname == "madx" {
+                        return Some(filename.to_str()?.to_string());
+                    }
+                }
+                None
+            })
+        .filter_map(|fname| { log::info!("scanning {}", fname); Self::from_path(&fname).ok()})
+            .map(|mut parser| {
+                parser.scan_includes();
+                parser.labels
+            })
+            .collect();
+
+        for label in included_labels {
+            log::info!("adding {} definitions", label.len());
+            labels.extend(label);
+        }
+        return labels;
+    }
+
     fn parse_elements(&mut self) {
         while let Some(expr) = Assignment::parse(self) {
             match &expr {
                 Expression::Label(label) => {
                 self.labels.insert(
-                    self.get_element_bytes(&label.name).to_vec(),
+                    self.get_element_bytes(&label.name).to_ascii_lowercase().to_vec(),
                     self.elements.len());
                 },
                 Expression::Assignment(assignment) => {
                 self.labels.insert(
-                    self.get_element_bytes(&*assignment.lhs).to_vec(),
+                    self.get_element_bytes(&*assignment.lhs).to_ascii_lowercase().to_vec(),
                     self.elements.len());
                 },
                 Expression::Macro(m) => {
                     self.labels.insert(
-                        self.get_element_bytes(&m.name).to_vec(),
+                        self.get_element_bytes(&m.name).to_ascii_lowercase().to_vec(),
                         self.elements.len());
                 },
                 _ => { }

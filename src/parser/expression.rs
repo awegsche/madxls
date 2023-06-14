@@ -161,11 +161,13 @@ impl HasRange for Exit {
 
 impl Exit {
     pub fn parse(parser: &mut Parser) -> Option<Self> {
-        if let Some(Token::Ident(name)) = parser.peek_token().copied() {
-            if parser.lexer.compare_range(&name, b"exit")
-                || parser.lexer.compare_range(&name, b"quit")
-                || parser.lexer.compare_range(&name, b"stop") {
-                    parser.advance();
+        if let Some(Token::Ident(name)) = parser.peek_token() {
+            if parser.lexer.compare_range(name, b"exit")
+                || parser.lexer.compare_range(name, b"quit")
+                || parser.lexer.compare_range(name, b"stop") {
+
+                    let name = name.clone();
+                    parser.position += 1;
                     return Some(Self {
                         start: name.0,
                         end: name.1,

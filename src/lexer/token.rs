@@ -3,7 +3,7 @@ use std::fmt::Display;
 use super::{CursorPosition, HasRange};
 
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Token {
     BraceOpen(CursorPosition),
     BraceClose(CursorPosition),
@@ -21,6 +21,8 @@ pub enum Token {
     Quotes(CursorPosition),
     DoubleQuotes(CursorPosition),
     Comment((CursorPosition, CursorPosition)),
+    MultilineComment(Vec<(CursorPosition, CursorPosition)>),
+    Char(CursorPosition),
     EOF,
 }
 
@@ -43,7 +45,9 @@ impl HasRange for Token {
             Token::Quotes(p) => (*p, p + 1),
             Token::DoubleQuotes(p) => (*p, p + 1),
             Token::Comment((s,e)) => (*s, *e),
-            Token::EOF => panic!("tried to get range of EOF"),
+            Token::MultilineComment(v) => (v[0].0, v.last().unwrap().1),
+            Token::Char(p) => (*p, p + 1),
+            Token::EOF => (CursorPosition::default(), CursorPosition::default()),
         }
     }
 }

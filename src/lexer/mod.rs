@@ -117,7 +117,7 @@ impl Lexer {
     }
 
 
-    pub fn format_range(&self, range: (&CursorPosition, &CursorPosition)) -> String {
+    pub fn format_range(&self, range: &(CursorPosition, CursorPosition)) -> String {
         let s = range.0.absolute();
         let e = range.1.absolute();
         format!("{}", String::from_utf8_lossy(&self.buffer[s..e]))
@@ -131,18 +131,20 @@ impl Lexer {
             Token::BraceClose(p) => self.format_position(p),
             Token::ParentOpen(p) => self.format_position(p),
             Token::ParentClose(p) => self.format_position(p),
-            Token::Ident((s,e)) => format!("Ident({})", self.format_range((s, e))),
-            Token::Number((s,e)) => format!("Number({})", self.format_range((s, e))),
+            Token::Ident((s,e)) => format!("Ident({})", self.format_range(&(*s, *e))),
+            Token::Number((s,e)) => format!("Number({})", self.format_range(&(*s, *e))),
             Token::Operator(p) => self.format_position(p),
             Token::Equal(p) => self.format_position(p),
-            Token::ColonEqual(p) => self.format_range((p, &(p+1))),
+            Token::ColonEqual(p) => self.format_range(&(*p, p+1)),
             Token::Dot(p) => self.format_position(p),
             Token::SemiColon(p) => self.format_position(p),
             Token::Colon(p) => self.format_position(p),
             Token::Komma(p) => self.format_position(p),
             Token::Quotes(p) => self.format_position(p),
             Token::DoubleQuotes(p) => self.format_position(p),
-            Token::Comment((s,e)) => format!("Comment({})", self.format_range((s, e))),
+            Token::Comment((s,e)) => format!("Comment({})", self.format_range(&(*s, *e))),
+            Token::MultilineComment(_) => format!("Comment({})", self.format_range(&token.get_range())),
+            Token::Char(p) => self.format_position(p),
             Token::EOF => "EOF".to_string(),
         }
     }
@@ -188,11 +190,23 @@ impl Lexer {
                 b'<' => Some(Token::Operator(self.position)),
                 b'>' => Some(Token::Operator(self.position)),
                 b'=' => Some(Token::Equal(self.position)),
-                b'/' => Some(Token::Operator(self.position)),
+                b'/' => self.read_forward_slash(),
                 b'\'' => Some(Token::Quotes(self.position)),
                 b'"' => Some(Token::DoubleQuotes(self.position)),
                 b'!' => self.read_comment(),
-                _ => None
+                b'#' => {
+                    let p0 = self.position;
+                    self.position += 1;
+                    if let Some(Token::Ident(mut p)) = self.read_ident() {
+                        p.0 = p0;
+                        self.position -= 1;
+                        Some(Token::Ident(p))
+                    }
+                    else {
+                        None
+                    }
+                },
+                _ => Some(Token::Char(self.position)),
             };
             self.position += 1;
             return token;
@@ -241,6 +255,42 @@ impl Lexer {
             self.position -= 1;
             Some(Token::Colon(self.position))
         }
+    }
+
+    pub fn read_forward_slash(&mut self) -> Option<Token> {
+        let p1 = self.position;
+        self.position += 1;
+        if let Some(b'/') = self.peak_char() {
+            if let Some(Token::Comment(mut comment)) = self.read_comment() {
+                comment.0 = p1;
+                return Some(Token::Comment(comment));
+            }
+        }
+        else if let Some(b'*') = self.peak_char() {
+            let mut start = p1;
+            let mut lines = Vec::new();
+            self.position += 1;
+
+            while let Some(c) = self.peak_char(){
+                if c == b'\n' {
+                    lines.push((start, self.position));
+                    //self.position += 1;
+                    self.position.advance_line();
+                    start = self.position+1;
+                }
+                else if c == b'*' {
+                    self.position += 1;
+                    if let Some(b'/') = self.peak_char() {
+                        lines.push((start, self.position+1));
+                        break;
+                    }
+                }
+                self.position += 1;
+            }
+            return Some(Token::MultilineComment(lines));
+        }
+        self.position -= 1;
+        Some(Token::Operator(p1))
     }
 
     pub fn read_comment(&mut self) -> Option<Token> {
@@ -409,6 +459,53 @@ mod tests {
             made_it,
             "Ident(made_it)".to_string()
         );
+    }
+
+    #[test]
+    fn match_c_style_comment() {
+        let lexer = Lexer::from_str("first;\n// this is a comment\nsecond");
+        let tokens = lexer.get_tokens();
+
+        assert_eq!(lexer.get_token_bytes(&tokens[0]), b"first");
+        assert_eq!(lexer.get_token_bytes(&tokens[1]), b";");
+        assert_eq!(lexer.get_token_bytes(&tokens[2]), b"// this is a comment");
+        assert_eq!(lexer.get_token_bytes(&tokens[3]), b"second");
+    }
+
+    #[test]
+    fn match_multiline_comment() {
+        let lexer = Lexer::from_str("first;\n/* this is a comment\nsecond line of comment\nthird line\n*/second");
+        let tokens = lexer.get_tokens();
+
+        assert_eq!(lexer.get_range_str(&tokens[0]), "first");
+        assert_eq!(lexer.get_range_str(&tokens[1]), ";");
+        assert_eq!(lexer.get_range_str(&tokens[2]), "/* this is a comment\nsecond line of comment\nthird line\n*/");
+        assert_eq!(lexer.get_range_str(&tokens[3]), "second");
+
+        if let Token::MultilineComment(v) = &tokens[2] {
+            assert_eq!(lexer.get_range_str(&v[0]), "/* this is a comment");
+            assert_eq!(lexer.get_range_str(&v[1]), "second line of comment");
+            assert_eq!(lexer.get_range_str(&v[2]), "third line");
+            assert_eq!(lexer.get_range_str(&v[3]), "*/");
+        }
+        else {
+            assert!(false, "Expected multiline comment");
+        }
+    }
+
+    #[test]
+    fn underscore_at_end() {
+        let lexer = Lexer::from_str("exec, a_");
+        let tokens = lexer.get_tokens();
+
+        assert_eq!(lexer.get_range_str(&tokens[0]), "exec");
+        assert_eq!(lexer.get_range_str(&tokens[1]), ",");
+        if let Token::Ident(range) = &tokens[2] {
+            assert_eq!(lexer.get_range_str(range), "a_");
+        }
+        else {
+            assert!(false, "Expected Ident(a_)");
+        }
     }
 }
 

@@ -62,16 +62,19 @@ impl Document {
             .collect()
     }
 
+    /// gets the hover information for the given set of labels
     pub fn get_hover(&self, labels: &Vec<&[u8]>, items: &mut Vec<MarkedString>, infile: Option<&Url>) {
 
         for label in labels.iter() {
             if let Some(index) = self.parser.labels.get(*label) {
-                let comment = String::from_utf8(self.parser.get_element_bytes(&self.parser.get_elements()[*index-1]).to_vec()).unwrap();
+                let comment = self.parser.get_element_str(&self.parser.get_elements()[*index-1]).to_string();
 
-                let line = self.parser.get_elements()[*index].get_range().0.line();
+                let element = &self.parser.get_elements()[*index];
+
+                let line = element.get_range().0.line();
                 let location = match infile {
                     Some(uri) => {
-                        format!("{}, ", uri.path())
+                        format!("\"{}\", ", uri.path())
                     },
                     None => String::new(),
                 };
@@ -81,10 +84,28 @@ impl Document {
                     _ => String::new()
                 };
                 */
+
+
+                let signature = match element {
+                    Expression::Label(l) => format!("`{}`  : **LABEL**", self.parser.get_element_str(l)),
+                    Expression::Macro(m) => format!("`{}{}`  : **MACRO**",
+                                                    self.parser.get_element_str(&m.name),
+                                                    self.parser.get_element_str(&(m.parenopen, m.parenclose+1)),
+                                                    ),
+                    Expression::Assignment(a) => format!("`{}`", self.parser.get_element_str(a)),
+                    Expression::String(_) => todo!(),
+                    Expression::Comment(_) => todo!(),
+                    Expression::Symbol(s) => s.clone(),
+                    Expression::MadGeneric(_) => todo!(),
+                    Expression::MadEnvironment(_) => todo!(),
+                    Expression::Exit(_) => todo!(),
+                    Expression::Operator(_) => todo!(),
+                    Expression::TokenExp(_) => todo!(),
+                };
+
                 items.push(MarkedString::String(
-                        format!("`{}`\n\n{}\n---\ndefined in {}line {}",
-                                String::from_utf8(label.to_vec()).unwrap(),
-                                comment, location, line
+                        format!("{}\n---\n{}\n---\ndefined in {}line {}",
+                                signature, comment, location, line
                                 )));
             }
         }

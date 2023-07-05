@@ -22,11 +22,12 @@ pub use madmacro::*;
 
 #[derive(Debug)]
 pub struct Parser {
-    uri: Option<Url>,
+    pub uri: Option<Url>,
     pub lexer: Lexer,
     elements: Vec<Expression>,
     pub labels: HashMap<Vec<u8>, usize>,
     pub position: usize,
+    pub includes: Vec<Url>,
 }
 
 pub const LEGEND_TYPE: &[SemanticTokenType] = &[
@@ -47,21 +48,25 @@ impl Parser {
         Ok(Self::from_lexer(Some(uri), lexer))
     }
 
-    pub fn from_path<P: AsRef<std::path::Path>>(path: &P) -> std::io::Result<Self> {
+    pub fn from_path<P: AsRef<std::path::Path>>(path: P) -> std::io::Result<Self> {
         let lexer = Lexer::open(path)?;
         Ok(Self::from_lexer(None, lexer))
     }
 
     pub fn from_lexer(uri: Option<Url>, lexer: Lexer) -> Self {
         lexer.get_tokens();
+
+
         let mut parser = Self {
             uri,
             lexer,
             elements: Vec::new(),
             labels: HashMap::new(),
+            includes: Vec::new(),
             position: 0,
         };
         parser.parse_elements();
+        parser.scan_includes();
         parser
     }
 
@@ -87,10 +92,9 @@ impl Parser {
         self.parse_elements();
     }
 
-    pub fn scan_includes(&self) -> HashMap<Vec<u8>, usize> {
+    pub fn scan_includes(&mut self) {
         log::info!("scanning includes");
-        let mut labels = HashMap::new();
-        let included_labels: Vec<_> =  self.elements.iter().filter_map(|e| match e {
+        self.includes = self.elements.iter().filter_map(|e| match e {
             Expression::MadGeneric(g) => {
                 if g.match_name == b"call" {
                     Some(g)
@@ -99,29 +103,22 @@ impl Parser {
                 }
             },_ => None
         })
-        .filter_map(|g| g.args[0].value.as_ref())
+        .filter_map(|g| g.args.first()?.value.as_ref())
             .filter_map(|arg| String::from_utf8(self.get_element_bytes(&**arg)[1..].to_vec()).ok())
             .filter_map(|filename| {log::info!("try include {}", filename); std::path::Path::new(&filename).canonicalize().ok() })
             .filter_map(|filename| {
                 if let Some(fname) = filename.extension() {
                     if fname == "mad" || fname == "madx" {
-                        return Some(filename.to_str()?.to_string());
+                        if filename.exists() {
+                            return Some(filename);
+                        }
                     }
                 }
                 None
             })
-        .filter_map(|fname| { log::info!("scanning {}", fname); Self::from_path(&fname).ok()})
-            .map(|mut parser| {
-                parser.scan_includes();
-                parser.labels
-            })
-            .collect();
-
-        for label in included_labels {
-            log::info!("adding {} definitions", label.len());
-            labels.extend(label);
-        }
-        return labels;
+        .filter_map(|filename| 
+             Url::from_file_path(filename).ok())
+            .collect::<Vec<_>>();
     }
 
     fn parse_elements(&mut self) {

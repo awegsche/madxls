@@ -1,7 +1,8 @@
 use std::collections::HashMap;
+use std::path::Path;
 
 use tower_lsp::jsonrpc::Result;
-use tower_lsp::lsp_types::{SemanticTokensResult, SemanticTokens, Position, CompletionResponse, CompletionItem, CompletionItemKind};
+use tower_lsp::lsp_types::{SemanticTokensResult, SemanticTokens, Position, CompletionResponse, CompletionItem, CompletionItemKind, MarkedString, Url};
 
 use crate::error::UTF8_PARSER_MSG;
 use crate::lexer::HasRange;
@@ -10,16 +11,19 @@ use crate::parser::{Parser, GENERIC_BUILTINS, Expression};
 #[derive(Debug)]
 pub struct Document {
     pub parser: Parser,
-    pub included_labels: HashMap<Vec<u8>, usize>,
 }
 
 impl Document {
+    pub fn open<P: AsRef<Path>>(path: P) -> std::io::Result<Self> {
+        Ok(Self{
+            parser: Parser::from_path(path)?,
+        })
+    }
+
     pub fn new(text: &[u8]) -> Self {
         let mut parser = Parser::from_bytes(text.to_vec());
-        let included_labels = parser.scan_includes();
         Self {
             parser,
-            included_labels
         }
     }
 
@@ -50,7 +54,44 @@ impl Document {
         Ok(tokens)
     }
 
-    pub fn get_completion(&self, position: Position) -> Result<Option<CompletionResponse>> {
+    pub fn get_labels_under_cursor(&self, position: Position) -> Vec<&[u8]> {
+        let pos = self.parser.lexer.cursor_pos_from_text_pos(position);
+
+        self.parser.get_elements().iter()
+            .filter_map(|e| e.get_label(&pos, &self.parser))
+            .collect()
+    }
+
+    pub fn get_hover(&self, labels: &Vec<&[u8]>, items: &mut Vec<MarkedString>, infile: Option<&Url>) {
+
+        for label in labels.iter() {
+            if let Some(index) = self.parser.labels.get(*label) {
+                let comment = String::from_utf8(self.parser.get_element_bytes(&self.parser.get_elements()[*index-1]).to_vec()).unwrap();
+
+                let line = self.parser.get_elements()[*index].get_range().0.line();
+                let location = match infile {
+                    Some(uri) => {
+                        format!("{}, ", uri.path())
+                    },
+                    None => String::new(),
+                };
+                /*
+                let comment = match self.parser.get_elements()[*index - 1] {
+                    Expression::Comment(range) => String::from_utf8(self.parser.get_element_bytes(&range).to_vec()).unwrap(),
+                    _ => String::new()
+                };
+                */
+                items.push(MarkedString::String(
+                        format!("`{}`\n\n{}\n---\ndefined in {}line {}",
+                                String::from_utf8(label.to_vec()).unwrap(),
+                                comment, location, line
+                                )));
+            }
+        }
+
+    }
+
+    pub fn get_completion(&self, position: Position) -> Vec<CompletionItem> {
         let pos = self.parser.lexer.cursor_pos_from_text_pos(position);
         log::debug!("completion triggered at {:#?}", pos);
         let mut items = Vec::new();
@@ -70,20 +111,11 @@ impl Document {
 
         }
 
-        for label in self.included_labels.keys() {
-            items.push(CompletionItem{
-                label: String::from_utf8(label.clone()).unwrap_or_else(|_| {UTF8_PARSER_MSG.to_string()}),
-                kind: Some(CompletionItemKind::VARIABLE),
-                ..Default::default()
-            });
-
-        }
-
         for e in self.parser.get_elements() {
             e.get_completion(&pos, &mut items);
         }
 
-        Ok(Some(CompletionResponse::Array(items)))
+        items
     }
 }
 
@@ -138,19 +170,4 @@ mod tests {
 
     }
 
-    /// this test loads a job file created by our model creation, including omc3 macros and the
-    /// entire lattice definition
-    /// If this test runs through, most of the functionality used for creating an lhc job should be
-    /// fine
-    #[test]
-    fn test_modelcreation() {
-        let document = Document::new(include_bytes!("../tests/job.create_model.madx"));
-
-
-        // now, what do we expect?
-        // lhcb1/2 should be defined
-        //
-        assert!(document.parser.labels.contains_key(&b"lhcb1".to_vec()), "lhcb1 not defined");
-        assert!(document.parser.labels.contains_key(&b"lhcb2".to_vec()), "lhcb2 not defined");
-    }
 }

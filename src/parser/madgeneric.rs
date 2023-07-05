@@ -159,6 +159,13 @@ impl MadGeneric {
         MadParam::to_semantic_token(&self.args, semantic_tokens, pre_line, pre_start, parser);
 
     }
+
+    pub(crate) fn get_label<'a>(&'a self, pos: &CursorPosition, parser: &'a Parser) -> Option<&[u8]> {
+        for p in self.args.iter() {
+            if let Some(label) = p.get_label(pos, parser) { return Some(label); }
+        }
+        None
+    }
 }
 
 impl HasRange for MadGeneric {
@@ -257,6 +264,10 @@ impl MadParam {
             }
         }
         args
+    }
+
+    fn get_label<'a>(&'a self, pos: &CursorPosition, parser: &'a Parser) -> Option<&[u8]> {
+        self.value.as_ref()?.get_label(pos, parser)
     }
 }
 

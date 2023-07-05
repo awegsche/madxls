@@ -91,6 +91,30 @@ impl Expression {
         None
     }
 
+    /// returns the label of the element under cursor, this is to find the definition and,
+    /// possibly, jump to it
+    pub fn get_label<'a>(&'a self, pos: &CursorPosition, parser: &'a Parser) -> Option<&[u8]> {
+        match self {
+            Expression::Label(_) => None,
+            Expression::Macro(_) => None,
+            Expression::Assignment(a) => a.get_label(pos, parser),
+            Expression::String(_) => None,
+            Expression::Comment(_) => None,
+            Expression::Symbol(s) => Some(s.as_bytes()),
+            Expression::MadGeneric(m) => m.get_label(pos, parser),
+            Expression::MadEnvironment(m) => m.get_label(pos, parser),
+            Expression::Exit(_) => None,
+            Expression::Operator(_) => None,
+            Expression::TokenExp(t) => {
+                let range = t.get_range();
+                if &range.0 < pos && pos < &range.1 {
+                    Some(parser.get_element_bytes(&range))
+                }
+                else { None }
+            },
+        }
+    }
+
     pub fn get_completion(&self, pos: &CursorPosition, items: &mut Vec<CompletionItem>) {
         match self {
             Expression::Label(_) => {},

@@ -1,6 +1,4 @@
-use std::fs::File;
-use std::io::BufWriter;
-use std::io::Write;
+use std::sync::Arc;
 
 use log::LevelFilter;
 use log4rs::Config;
@@ -58,7 +56,7 @@ async fn main() {
 
 #[derive(Debug)]
 struct Backend {
-    documents: DashMap<Url, document::Document>,
+    documents: Arc<DashMap<Url, document::Document>>,
     client: Client,
 }
 
@@ -116,20 +114,15 @@ impl LanguageServer for Backend {
     }
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
+
         log::info!("completion");
         let uri = params.text_document_position.text_document.uri;
-        if let Some(document) = self.documents.get(&uri) {
-            document.get_completion(params.text_document_position.position)
-        }
-        else {
-            Ok(Some(CompletionResponse::Array(
-                        vec![
-                        CompletionItem::new_simple(
-                            "hello".to_string(), "details".to_string()
-                            )
-                        ]
-                        )))
-        }
+        let mut items = Vec::new();
+
+        get_completions(&mut items, params.text_document_position.position, &uri, &self.documents);
+        Ok(Some(CompletionResponse::Array(
+                    items
+                    )))
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
@@ -139,13 +132,24 @@ impl LanguageServer for Backend {
             .await;
         let uri = &params.text_document.uri;
         if !self.documents.contains_key(uri) {
-            let mut document = document::Document::new(params.text_document.text.as_bytes());
+            let document = document::Document::new(params.text_document.text.as_bytes());
+
+            // check the includes
+            for incl in document.parser.includes.iter().cloned() {
+                let docs = self.documents.clone();
+                tokio::spawn(async move {
+                    reload_includes(incl, &docs);
+                });
+            }
+
             self.documents.insert(
                 uri.clone(),
                 document,
             );
+
         }
     }
+
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         log::info!("did change");
@@ -157,12 +161,17 @@ impl LanguageServer for Backend {
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         log::info!("hover");
-        if let Some(parser) = self.documents.get(&params.text_document_position_params.text_document.uri) {
+        if let Some(doc) = self.documents.get(&params.text_document_position_params.text_document.uri) {
+            let labels = doc.get_labels_under_cursor(params.text_document_position_params.position);
+            let mut items = Vec::new();
+            doc.get_hover(&labels, &mut items, None);
+
+            for (uri, incl) in doc.parser.includes.iter().filter_map(|uri| Some((uri, self.documents.get(uri)?))) {
+                incl.get_hover(&labels, &mut items, Some(uri));
+            }
             return Ok(Some(Hover {
-                contents: HoverContents::Scalar(
-                              MarkedString::String("You're hovering!".to_string())
-                              ),
-                              range: None
+                contents: HoverContents::Array(items),
+                range: None
             }));
 
         }
@@ -187,11 +196,33 @@ impl LanguageServer for Backend {
     }
 }
 
+fn reload_includes(uri: Url, documents: &Arc<DashMap<Url, document::Document>>) {
+    if documents.contains_key(&uri) { return; }
+
+    if let Ok(doc) = document::Document::open(uri.path()) {
+        for incl in doc.parser.includes.iter().cloned() {
+            reload_includes(incl, documents);
+        }
+
+        documents.insert(uri, doc);
+    }
+}
+
+fn get_completions(items: &mut Vec<CompletionItem>, pos: Position, url: &Url, documents: &Arc<DashMap<Url, document::Document>>) {
+    if let Some(doc) = documents.get(url) {
+        items.extend(doc.get_completion(pos).into_iter());
+
+        for incl in doc.parser.includes.iter() {
+            get_completions(items, pos, &incl, documents);
+        }
+    }
+}
+
 async fn run_server() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
-    let (service, socket) = LspService::new(|client| Backend { client, documents: DashMap::new() });
+    let (service, socket) = LspService::new(|client| Backend { client, documents: Arc::new(DashMap::new()) });
     Server::new(stdin, stdout, socket).serve(service).await;
 }
 

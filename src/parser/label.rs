@@ -52,7 +52,7 @@ mod tests {
 
         if let Expression::Label(label) = &parser.get_elements()[0] {
             assert_eq!(parser.get_element_bytes(&label.name), b"label");
-            assert_eq!(parser.get_element_bytes(&label.command), b"twiss, sequence=lhcb");
+            assert_eq!(parser.get_element_bytes(&label.command), b"twiss, sequence=lhcb;");
             assert_eq!(parser.labels.keys().collect::<Vec<_>>(), vec![b"label"]);
         }
     }

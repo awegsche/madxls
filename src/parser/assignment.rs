@@ -1,4 +1,4 @@
-use crate::lexer::{Token, HasRange};
+use crate::lexer::{Token, HasRange, CursorPosition};
 
 use super::{Expression, Parser};
 
@@ -33,6 +33,13 @@ impl Assignment {
                 }
             }
             return Some(expr);
+        }
+        None
+    }
+
+    pub(crate) fn get_label<'a>(&'a self, pos: &CursorPosition, parser: &'a Parser) -> Option<&[u8]> {
+        if let Some(rhs) = &self.rhs {
+            return rhs.get_label(pos, parser);
         }
         None
     }

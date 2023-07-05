@@ -127,6 +127,14 @@ impl Environment {
 
         semantic_tokens.push(get_range_token(&self.end.get_range(), 7, pre_line, pre_start, parser));
     }
+
+    pub(crate) fn get_label<'a>(&'a self, pos: &CursorPosition, parser: &'a Parser) -> Option<&[u8]> {
+        let range = self.start.get_range();
+        if &range.0 < pos && pos < &range.1 {
+            return Some(parser.get_element_bytes(&range));
+        }
+        None
+    }
 }
 
 impl HasRange for Environment {

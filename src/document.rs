@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use tower_lsp::jsonrpc::Result;
-use tower_lsp::lsp_types::{SemanticTokensResult, SemanticTokens, Position, CompletionResponse, CompletionItem, CompletionItemKind, MarkedString, Url};
+use tower_lsp::lsp_types::{SemanticTokensResult, SemanticTokens, Position, CompletionResponse, CompletionItem, CompletionItemKind, MarkedString, Url, Diagnostic, Range, DiagnosticSeverity};
 
 use crate::error::UTF8_PARSER_MSG;
 use crate::lexer::HasRange;
@@ -30,6 +30,37 @@ impl Document {
     pub fn reload(&mut self, text: &[u8]) {
         self.parser = Parser::from_bytes(text.to_vec());
         //self.parser.scan_includes();
+    }
+
+    pub fn get_diagnostics(&self) -> Vec<Diagnostic> {
+        self.parser.problems.iter()
+            .map(|p| {
+                let range = match p {
+                    crate::parser::Problem::InvalidParam(range) => range,
+                    crate::parser::Problem::Error(_, _, _) => todo!(),
+                    crate::parser::Problem::Warning(_, _, _) => todo!(),
+                    crate::parser::Problem::Hint(_, _, _) => todo!(),
+                };
+                let range = Range::new(
+                    self.parser.lexer.cursor_pos_to_text_pos(range.0),
+                    self.parser.lexer.cursor_pos_to_text_pos(range.1)
+                    );
+                let severity = match p {
+                    crate::parser::Problem::InvalidParam(_) => DiagnosticSeverity::ERROR,
+                    crate::parser::Problem::Error(_, _, _) => DiagnosticSeverity::ERROR,
+                    crate::parser::Problem::Warning(_, _, _) => DiagnosticSeverity::WARNING,
+                    crate::parser::Problem::Hint(_, _, _) => DiagnosticSeverity::HINT,
+                };
+                Diagnostic::new(range,
+                                Some(severity),
+                                None,
+                                None,
+                                format!("{}", p),
+                                None,
+                                None
+                               )
+            })
+        .collect()
     }
 
     pub fn get_semantic_tokens(&self) -> Result<Option<SemanticTokensResult>> {
@@ -150,7 +181,7 @@ mod tests {
         let doc = Document::new(b"option, echo;\ntwiss, sequence=lhcb1, file=\"twiss.dat\";");
 
         let st = doc.get_semantic_tokens();
-        let completion = doc.get_completion(Position { line: 0, character: 0 });
+        let completion = doc.get_completion(Some(Position { line: 0, character: 0 }));
          
     }
 
@@ -159,7 +190,7 @@ mod tests {
         let doc = Document::new(b"option, echo;\nseqedit; flatten;\ntwiss, sequence = lhcb1;");
 
         let st = doc.get_semantic_tokens();
-        let completion = doc.get_completion(Position { line: 1, character: 10 });
+        let completion = doc.get_completion(Some(Position { line: 1, character: 10 }));
 
     }
 
@@ -168,7 +199,7 @@ mod tests {
         let doc = Document::new(b"option, echo;\ncall, fi");
 
         let st = doc.get_semantic_tokens();
-        let completion = doc.get_completion(Position { line: 1, character: 21 });
+        let completion = doc.get_completion(Some(Position { line: 1, character: 21 }));
 
         for i in completion.iter() {
             if i.label == "file" {

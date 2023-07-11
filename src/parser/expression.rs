@@ -5,7 +5,7 @@ use tower_lsp::lsp_types::{SemanticToken, CompletionItem};
 
 use crate::{lexer::{CursorPosition, Token, HasRange}, semantic_tokens::{get_range_token}};
 
-use super::{Parser, MadGenericBuilder, insert_generic_builder, MadGeneric, Label, GENERIC_BUILTINS, Environment, Assignment, Macro};
+use super::{Parser, MadGenericBuilder, insert_generic_builder, MadGeneric, Label, GENERIC_BUILTINS, Environment, Assignment, Macro, Problem};
 #[derive(Debug, PartialEq)]
 pub enum Expression {
     Label(Label),
@@ -67,6 +67,21 @@ impl Expression {
         None
     }
 
+    pub fn get_problems(&self, problems: &mut Vec<Problem>) {
+        match self {
+            Expression::Label(_) => {},
+            Expression::Macro(_) => {},
+            Expression::Assignment(_) => {},
+            Expression::String(_) => {},
+            Expression::Comment(_) => {},
+            Expression::Symbol(_) => {},
+            Expression::MadGeneric(g) => g.get_problems(problems),
+            Expression::MadEnvironment(_) => {},
+            Expression::Exit(_) => {},
+            Expression::Operator(_) => {},
+            Expression::TokenExp(_) => {},
+        }
+    }
 
     fn parse_string(parser: &mut Parser) -> Option<Self> {
 

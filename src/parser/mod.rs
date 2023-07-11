@@ -11,6 +11,7 @@ pub mod label;
 pub mod madenvironment;
 pub mod assignment;
 pub mod madmacro;
+pub mod problem;
 
 pub use expression::*;
 pub use madgeneric::*;
@@ -18,7 +19,7 @@ pub use label::*;
 pub use madenvironment::*;
 pub use assignment::*;
 pub use madmacro::*;
-
+pub use problem::*;
 
 #[derive(Debug)]
 pub struct Parser {
@@ -28,6 +29,7 @@ pub struct Parser {
     pub labels: HashMap<Vec<u8>, usize>,
     pub position: usize,
     pub includes: Vec<Url>,
+    pub problems: Vec<Problem>,
 }
 
 pub const LEGEND_TYPE: &[SemanticTokenType] = &[
@@ -64,6 +66,7 @@ impl Parser {
             labels: HashMap::new(),
             includes: Vec::new(),
             position: 0,
+            problems: Vec::new(),
         };
         parser.parse_elements();
         parser.scan_includes();
@@ -141,6 +144,7 @@ impl Parser {
                 },
                 _ => { }
             }
+            expr.get_problems(&mut self.problems);
             self.elements.push(expr);
         }
     }

@@ -141,6 +141,7 @@ impl LanguageServer for Backend {
                     reload_includes(incl, &docs);
                 });
             }
+            self.client.publish_diagnostics(params.text_document.uri.clone(), document.get_diagnostics(), None).await;
 
             self.documents.insert(
                 uri.clone(),
@@ -155,6 +156,7 @@ impl LanguageServer for Backend {
         log::info!("did change");
         if let Some(mut document) = self.documents.get_mut(&params.text_document.uri) {
             document.reload(params.content_changes[0].text.as_bytes());
+            self.client.publish_diagnostics(params.text_document.uri.clone(), document.get_diagnostics(), None).await;
         }
     }
 

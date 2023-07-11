@@ -83,6 +83,10 @@ impl Lexer {
         CursorPosition::new(pos.character as usize + self.lines[pos.line as usize], pos.line as usize)
     }
 
+    pub fn cursor_pos_to_text_pos(&self, pos: CursorPosition) -> Position {
+        Position::new(pos.line() as u32, pos.character(&self.lines) as u32)
+    }
+
     pub fn get_token_byte(&self, position: &CursorPosition) -> &u8 {
         &self.buffer[position.absolute()]
     }

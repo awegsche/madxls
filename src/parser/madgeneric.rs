@@ -5,7 +5,7 @@ use tower_lsp::lsp_types::{CompletionItem, CompletionItemKind};
 
 use crate::{lexer::{Token, CursorPosition, HasRange}, semantic_tokens::{get_range_token}, error::UTF8_PARSER_MSG};
 
-use super::{Expression, Parser};
+use super::{Expression, Parser, Problem};
 
 // ---- const map of generic madx commands ---------------------------------------------------------
 
@@ -165,6 +165,14 @@ impl MadGeneric {
             if let Some(label) = p.get_label(pos, parser) { return Some(label); }
         }
         None
+    }
+
+    pub(crate) fn get_problems(&self, problems: &mut Vec<Problem>) {
+        for arg in self.args.iter() {
+            if !arg.valid {
+                problems.push(Problem::InvalidParam(arg.get_range()));
+            }
+        }
     }
 }
 

@@ -51,8 +51,8 @@ mod tests {
         let parser = Parser::from_bytes(b"label: twiss, sequence=lhcb;".to_vec());
 
         if let Expression::Label(label) = &parser.get_elements()[0] {
-            assert_eq!(parser.get_element_bytes(&label.name), b"label");
-            assert_eq!(parser.get_element_bytes(&label.command), b"twiss, sequence=lhcb;");
+            assert_eq!(parser.get_element_str(&label.name), "label");
+            assert_eq!(parser.get_element_str(&label.command), "twiss, sequence=lhcb");
             assert_eq!(parser.labels.keys().collect::<Vec<_>>(), vec![b"label"]);
         }
     }

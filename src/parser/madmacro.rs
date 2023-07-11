@@ -84,7 +84,7 @@ impl Macro {
 
             while let Some(expr) = Assignment::parse(parser) {
                 if let Expression::TokenExp(Token::BraceClose(end)) = expr {
-                    m.end = end;
+                    m.end = end + 1;
                     break;
                 }
                 m.body.push(expr);
@@ -160,7 +160,7 @@ mod tests {
 
         if let Expression::Macro(m) = m {
             assert_eq!(parser.get_element_str(&m.name), "m1");
-            assert_eq!(parser.get_element_str(&m), "m1(a, b): macro = {\n twiss,sequence=lhcb1;\na=b;\n}");
+            assert_eq!(parser.get_element_str(m), "m1(a, b): macro = {\n twiss,sequence=lhcb1;\na=b;\n}");
 
             //assert!(false, "m: {:?}\n\n element after:\n{:?}", m, parser.get_elements()[1]);
         } 

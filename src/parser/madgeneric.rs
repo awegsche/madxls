@@ -311,4 +311,36 @@ pub fn insert_generic_builder(map: &mut HashMap<&'static [u8], MadGenericBuilder
 }
 
 
+#[cfg(test)]
+mod tests {
+    use crate::parser::{Parser, Expression};
+
+    #[test]
+    pub fn incomplete() {
+        let parser = Parser::from_str("call, fi");
+
+        let call = &parser.get_elements()[0];
+
+        if let Expression::MadGeneric(g) = call {
+            assert_eq!(parser.get_element_str(&g.name), "call");
+        }
+        else {
+            assert!(false, "this should be recognized as incomplete CALL");
+        }
+    }
+
+    #[test]
+    pub fn incomplete_inside() {
+        let parser = Parser::from_str("call, fi\ntwiss, sequence=lhcb1;");
+
+        let call = &parser.get_elements()[0];
+
+        if let Expression::MadGeneric(g) = call {
+            assert_eq!(parser.get_element_str(&g.name), "call");
+        }
+        else {
+            assert!(false, "this should be recognized as incomplete CALL");
+        }
+    }
+}
 

@@ -164,6 +164,27 @@ mod tests {
     }
 
     #[test]
+    fn test_incomplete_generic() {
+        let doc = Document::new(b"option, echo;\ncall, fi");
+
+        let st = doc.get_semantic_tokens();
+        let completion = doc.get_completion(Position { line: 1, character: 21 });
+
+        for i in completion.iter() {
+            if i.label == "file" {
+                return;
+            }
+        }
+
+        assert!(false, "didn't provide 'file' as possible completion\ncompletions are:\n{:?}\nsemantic tokens:\n{:?}",
+                completion.iter().filter(|c| c.kind.unwrap() == CompletionItemKind::FIELD).collect::<Vec<_>>(),
+                st
+                );
+
+    }
+
+
+    #[test]
     fn test_macros() {
         let elements = vec![
             "// test file", ";",

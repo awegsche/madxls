@@ -119,7 +119,7 @@ impl LanguageServer for Backend {
         let uri = params.text_document_position.text_document.uri;
         let mut items = Vec::new();
 
-        get_completions(&mut items, params.text_document_position.position, &uri, &self.documents);
+        get_completions(&mut items, Some(params.text_document_position.position), &uri, &self.documents);
         Ok(Some(CompletionResponse::Array(
                     items
                     )))
@@ -208,12 +208,12 @@ fn reload_includes(uri: Url, documents: &Arc<DashMap<Url, document::Document>>) 
     }
 }
 
-fn get_completions(items: &mut Vec<CompletionItem>, pos: Position, url: &Url, documents: &Arc<DashMap<Url, document::Document>>) {
+fn get_completions(items: &mut Vec<CompletionItem>, pos: Option<Position>, url: &Url, documents: &Arc<DashMap<Url, document::Document>>) {
     if let Some(doc) = documents.get(url) {
         items.extend(doc.get_completion(pos).into_iter());
 
         for incl in doc.parser.includes.iter() {
-            get_completions(items, pos, &incl, documents);
+            get_completions(items, None, &incl, documents);
         }
     }
 }

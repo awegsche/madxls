@@ -112,17 +112,8 @@ impl Document {
 
     }
 
-    pub fn get_completion(&self, position: Position) -> Vec<CompletionItem> {
-        let pos = self.parser.lexer.cursor_pos_from_text_pos(position);
-        log::debug!("completion triggered at {:#?}", pos);
+    pub fn get_completion(&self, position: Option<Position>) -> Vec<CompletionItem> {
         let mut items = Vec::new();
-        for name in GENERIC_BUILTINS.keys() {
-            items.push(CompletionItem{
-                label: String::from_utf8(name.to_vec()).unwrap_or_else(|_| {UTF8_PARSER_MSG.to_string()}),
-                kind: Some(CompletionItemKind::FUNCTION),
-                ..Default::default()});
-        }
-        log::debug!("labels.len() = {}", self.parser.labels.len());
         for label in self.parser.labels.keys() {
             items.push(CompletionItem{
                 label: String::from_utf8(label.clone()).unwrap_or_else(|_| {UTF8_PARSER_MSG.to_string()}),
@@ -132,8 +123,18 @@ impl Document {
 
         }
 
-        for e in self.parser.get_elements() {
-            e.get_completion(&pos, &mut items);
+        if let Some(position) = position {
+            let pos = self.parser.lexer.cursor_pos_from_text_pos(position);
+            log::debug!("completion triggered at {:#?}", pos);
+            for name in GENERIC_BUILTINS.keys() {
+                items.push(CompletionItem{
+                    label: String::from_utf8(name.to_vec()).unwrap_or_else(|_| {UTF8_PARSER_MSG.to_string()}),
+                    kind: Some(CompletionItemKind::FUNCTION),
+                    ..Default::default()});
+            }
+            for e in self.parser.get_elements() {
+                e.get_completion(&pos, &mut items);
+            }
         }
 
         items

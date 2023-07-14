@@ -95,7 +95,7 @@ impl Macro {
         None
     }
 
-    fn read_parenthesis(parser: &mut Parser) -> Option<(CursorPosition, Vec<Token>, CursorPosition)> {
+    pub fn read_parenthesis(parser: &mut Parser) -> Option<(CursorPosition, Vec<Token>, CursorPosition)> {
 
         let mut start = CursorPosition::default(); 
         let mut end = CursorPosition::default(); 
@@ -126,7 +126,9 @@ impl Macro {
     }
 
     pub fn get_completion(&self, pos: &CursorPosition, items: &mut Vec<CompletionItem>) {
-        
+        for e in self.body.iter() {
+            e.get_completion(pos, items);
+        }
     }
 
     pub fn to_semantic_token(&self, semantic_tokens: &mut Vec<SemanticToken>, pre_line: &mut u32, pre_start: &mut u32, parser: &Parser) {

@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 use std::path::Path;
+use std::string::ParseError;
 
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::{SemanticTokensResult, SemanticTokens, Position, CompletionResponse, CompletionItem, CompletionItemKind, MarkedString, Url, Diagnostic, Range, DiagnosticSeverity};
 
 use crate::error::UTF8_PARSER_MSG;
 use crate::lexer::HasRange;
-use crate::parser::{Parser, GENERIC_BUILTINS, Expression};
+use crate::parser::{Parser, GENERIC_BUILTINS, Expression, Problem, MaybeProblem};
 
 #[derive(Debug)]
 pub struct Document {
@@ -21,9 +22,8 @@ impl Document {
     }
 
     pub fn new(text: &[u8]) -> Self {
-        let mut parser = Parser::from_bytes(text.to_vec());
         Self {
-            parser,
+            parser: Parser::from_bytes(text.to_vec())
         }
     }
 
@@ -32,35 +32,23 @@ impl Document {
         //self.parser.scan_includes();
     }
 
-    pub fn get_diagnostics(&self) -> Vec<Diagnostic> {
-        self.parser.problems.iter()
-            .map(|p| {
-                let range = match p {
-                    crate::parser::Problem::InvalidParam(range) => range,
-                    crate::parser::Problem::Error(_, _, _) => todo!(),
-                    crate::parser::Problem::Warning(_, _, _) => todo!(),
-                    crate::parser::Problem::Hint(_, _, _) => todo!(),
-                };
-                let range = Range::new(
-                    self.parser.lexer.cursor_pos_to_text_pos(range.0),
-                    self.parser.lexer.cursor_pos_to_text_pos(range.1)
-                    );
-                let severity = match p {
-                    crate::parser::Problem::InvalidParam(_) => DiagnosticSeverity::ERROR,
-                    crate::parser::Problem::Error(_, _, _) => DiagnosticSeverity::ERROR,
-                    crate::parser::Problem::Warning(_, _, _) => DiagnosticSeverity::WARNING,
-                    crate::parser::Problem::Hint(_, _, _) => DiagnosticSeverity::HINT,
-                };
-                Diagnostic::new(range,
-                                Some(severity),
-                                None,
-                                None,
-                                format!("{}", p),
-                                None,
-                                None
-                               )
-            })
-        .collect()
+    pub fn get_diagnostics(&self) -> Vec<MaybeProblem> {
+        self.parser.problems.iter().map(|p| {
+            let range = match p {
+                crate::parser::Problem::MissingCallee(_, range) => range,
+                crate::parser::Problem::InvalidParam(range) => range,
+                crate::parser::Problem::Error(_, _, _) => todo!(),
+                crate::parser::Problem::Warning(_, _, _) => todo!(),
+                crate::parser::Problem::Hint(_, _, _) => todo!(),
+            };
+            MaybeProblem{
+            problem: Some(p.clone()),
+            range: Range::new(
+                self.parser.lexer.cursor_pos_to_text_pos(range.0),
+                self.parser.lexer.cursor_pos_to_text_pos(range.1)
+                )
+            }
+        }).collect()
     }
 
     pub fn get_semantic_tokens(&self) -> Result<Option<SemanticTokensResult>> {
@@ -97,9 +85,14 @@ impl Document {
     pub fn get_hover(&self, labels: &Vec<&[u8]>, items: &mut Vec<MarkedString>, infile: Option<&Url>) {
 
         for label in labels.iter() {
+            // first, look in named labels
             if let Some(index) = self.parser.labels.get(*label) {
-                let comment = self.parser.get_element_str(&self.parser.get_elements()[*index-1]).to_string();
-
+                let comment = if *index > 0 {
+                    self.parser.get_element_str(&self.parser.get_elements()[*index-1]).to_string()}
+                else {
+                     String::new()
+                };
+                                    
                 let element = &self.parser.get_elements()[*index];
 
                 let line = element.get_range().0.line();
@@ -132,6 +125,7 @@ impl Document {
                     Expression::Exit(_) => todo!(),
                     Expression::Operator(_) => todo!(),
                     Expression::TokenExp(_) => todo!(),
+                    Expression::Exec(_) => todo!(),
                 };
 
                 items.push(MarkedString::String(
@@ -174,6 +168,8 @@ impl Document {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
 
     #[test]
@@ -242,6 +238,30 @@ mod tests {
         let doc = Document::new(include_bytes!("../tests/macros/lhc.macros.run3.madx"));
 
 
+    }
+
+    #[test]
+    fn get_hover() {
+        let doc = Document::new(b"
+do_twiss(a,b): macro = { twiss, sequence=lhcb1;};
+option, echo;
+
+exec, do_twiss(0, 0);
+                                ");
+
+        let labels = doc.get_labels_under_cursor(Position::new(5, 9));
+
+        assert_eq!(labels, [b"do_twiss"]);
+        let mut items = vec![];
+        let uri = Url::from_file_path("/home").unwrap();
+        doc.get_hover(&labels, &mut items, Some(&uri));
+
+        for item in items.iter() {
+            if let MarkedString::String(s) = item {
+                if s == "`do_twiss(a,b)`  : **MACRO**\n---\n\n---\ndefined in \"/home\", line 1" { return; }
+            }
+        }
+        assert!(false, "expected macro do_twiss in hover, items: {:?}", items);
     }
 
 }

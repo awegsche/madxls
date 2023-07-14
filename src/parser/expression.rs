@@ -5,7 +5,7 @@ use tower_lsp::lsp_types::{SemanticToken, CompletionItem};
 
 use crate::{lexer::{CursorPosition, Token, HasRange}, semantic_tokens::{get_range_token}};
 
-use super::{Parser, MadGenericBuilder, insert_generic_builder, MadGeneric, Label, GENERIC_BUILTINS, Environment, Assignment, Macro, Problem};
+use super::{Parser, MadGenericBuilder, insert_generic_builder, MadGeneric, Label, GENERIC_BUILTINS, Environment, Assignment, Macro, Problem, MadExec};
 #[derive(Debug, PartialEq)]
 pub enum Expression {
     Label(Label),
@@ -18,6 +18,7 @@ pub enum Expression {
     MadEnvironment(Environment),
     Exit(Exit),
     Operator(Operator),
+    Exec(MadExec),
     TokenExp(Token), // debug, todo: remove
 }
 
@@ -35,6 +36,7 @@ impl HasRange for Expression {
             Expression::Operator(_) => todo!(),
             Expression::TokenExp(token) => token.get_range(),
             Expression::Exit(exit) => (exit.start, exit.end),
+            Expression::Exec(exec) => exec.get_range(),
         }
     }
 }
@@ -55,6 +57,9 @@ impl Expression {
         }
         if let Some(generic) = MadGeneric::parse(parser) {
             return Some(Expression::MadGeneric(generic));
+        }
+        if let Some(exec) = MadExec::parse(parser) {
+            return Some(Expression::Exec(exec));
         }
 
         if let Some(exit) = Exit::parse(parser) {
@@ -79,6 +84,7 @@ impl Expression {
             Expression::MadEnvironment(_) => {},
             Expression::Exit(_) => {},
             Expression::Operator(_) => {},
+            Expression::Exec(e) => e.get_problems(problems),
             Expression::TokenExp(_) => {},
         }
     }
@@ -120,6 +126,7 @@ impl Expression {
             Expression::MadEnvironment(m) => m.get_label(pos, parser),
             Expression::Exit(_) => None,
             Expression::Operator(_) => None,
+            Expression::Exec(s) => s.get_label(pos, parser),
             Expression::TokenExp(t) => {
                 let range = t.get_range();
                 if &range.0 < pos && pos < &range.1 {
@@ -141,6 +148,7 @@ impl Expression {
             Expression::MadGeneric(g) => g.get_completion(pos, items),
             Expression::MadEnvironment(e) => {e.get_completion(pos, items)},
             Expression::Exit(_) => {},
+            Expression::Exec(_) => {},
             Expression::Operator(_) => {},
             Expression::TokenExp(_) => {},
         }

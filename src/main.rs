@@ -6,6 +6,8 @@ use log4rs::config::Appender;
 use log4rs::config::Root;
 use log4rs::encode::pattern::PatternEncoder;
 use parser::LEGEND_TYPE;
+use parser::MaybeProblem;
+use parser::Problem;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
@@ -53,6 +55,11 @@ async fn main() {
     log4rs::init_config(config).unwrap();
     run_server().await;
 }
+
+pub enum Message {
+    DiagnosticsCompleted(Vec<Problem>)
+}
+
 
 #[derive(Debug)]
 struct Backend {
@@ -115,6 +122,7 @@ impl LanguageServer for Backend {
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
 
+
         log::info!("completion");
         let uri = params.text_document_position.text_document.uri;
         let mut items = Vec::new();
@@ -135,13 +143,13 @@ impl LanguageServer for Backend {
             let document = document::Document::new(params.text_document.text.as_bytes());
 
             // check the includes
-            for incl in document.parser.includes.iter().cloned() {
-                let docs = self.documents.clone();
-                tokio::spawn(async move {
+            let includes = document.parser.includes.clone();
+            let docs = self.documents.clone();
+            tokio::spawn(async move {
+                for incl in includes.into_iter() {
                     reload_includes(incl, &docs);
-                });
-            }
-            self.client.publish_diagnostics(params.text_document.uri.clone(), document.get_diagnostics(), None).await;
+                }
+            });
 
             self.documents.insert(
                 uri.clone(),
@@ -156,8 +164,9 @@ impl LanguageServer for Backend {
         log::info!("did change");
         if let Some(mut document) = self.documents.get_mut(&params.text_document.uri) {
             document.reload(params.content_changes[0].text.as_bytes());
-            self.client.publish_diagnostics(params.text_document.uri.clone(), document.get_diagnostics(), None).await;
+            //self.client.publish_diagnostics(params.text_document.uri.clone(), document.get_diagnostics(), None).await;
         }
+        self.resubmit_diagnostics(&params.text_document.uri).await;
     }
 
 
@@ -198,15 +207,66 @@ impl LanguageServer for Backend {
     }
 }
 
-fn reload_includes(uri: Url, documents: &Arc<DashMap<Url, document::Document>>) {
-    if documents.contains_key(&uri) { return; }
+fn recheck_problems(uri: &Url, documents: &Arc<DashMap<Url, document::Document>>, problems: &mut Vec<MaybeProblem>) {
+    if let Some(doc) =  documents.get(uri) {
 
-    if let Ok(doc) = document::Document::open(uri.path()) {
-        for incl in doc.parser.includes.iter().cloned() {
-            reload_includes(incl, documents);
+        log::debug!("rechecking {}", uri.path());
+        log::debug!("children:");
+        for incl in doc.parser.includes.iter() {
+            recheck_problems(incl, documents, problems);
         }
 
-        documents.insert(uri, doc);
+        log::debug!("problems:");
+        for p in problems.iter_mut() {
+            match p.problem.as_ref() {
+                Some(Problem::MissingCallee(c, _)) => {
+                    // look for callee in labels
+                    for (label, _) in doc.parser.labels.iter() {
+                        if label == c {
+                            log::debug!("match");
+                            p.problem = None;
+                            break;
+                        }
+                    }
+                },
+                _ => {}
+            }
+        }
+        log::debug!("not-None: {}", problems.iter().filter(|p| p.problem.is_some()).count());
+    }
+}
+
+fn reload_includes(uri: Url, documents: &Arc<DashMap<Url, document::Document>>) {
+    if !documents.contains_key(&uri) {
+        if let Ok(doc) = document::Document::open(uri.path()) {
+            for incl in doc.parser.includes.iter().cloned() {
+                reload_includes(incl, documents);
+            }
+
+            documents.insert(uri.clone(), doc);
+        }
+    }
+
+}
+
+impl Backend {
+    async fn resubmit_diagnostics(&self, uri: &Url) {
+        log::debug!("try resubmit");
+
+        if let Some(doc) = self.documents.get(uri) {
+            let mut problems = doc.get_diagnostics();
+
+            for p in problems.iter_mut() {
+                match p.problem.as_mut() {
+                    Some(Problem::MissingCallee(s, r)) => *s = doc.parser.get_element_bytes(r).to_vec(),
+                    _ => {}
+                }
+            }
+            recheck_problems(uri, &self.documents, &mut problems);
+
+            log::debug!("publishing");
+            self.client.publish_diagnostics(uri.clone(), diagnostics_from_problems(&problems), None).await;
+        }
     }
 }
 
@@ -220,11 +280,40 @@ fn get_completions(items: &mut Vec<CompletionItem>, pos: Option<Position>, url: 
     }
 }
 
+fn diagnostics_from_problems(problems: &[MaybeProblem]) -> Vec<Diagnostic> {
+    problems.iter()
+        .filter_map(|p| {
+            let Some(problem) = p.problem.as_ref() else { return None; };
+
+            let severity = match problem {
+                Problem::MissingCallee(_,_) => DiagnosticSeverity::ERROR,
+                Problem::InvalidParam(_) => DiagnosticSeverity::ERROR,
+                Problem::Error(_, _, _) => DiagnosticSeverity::ERROR,
+                Problem::Warning(_, _, _) => DiagnosticSeverity::WARNING,
+                Problem::Hint(_, _, _) => DiagnosticSeverity::HINT,
+            };
+            Some(Diagnostic::new(p.range,
+                                 Some(severity),
+                                 None,
+                                 None,
+                                 format!("{}", problem),
+                                 None,
+                                 None
+                                )
+                )})
+        .collect()
+
+}
+
 async fn run_server() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
-    let (service, socket) = LspService::new(|client| Backend { client, documents: Arc::new(DashMap::new()) });
+
+    let (service, socket) = LspService::new(|client| Backend {
+        client,
+        documents: Arc::new(DashMap::new()),
+    });
     Server::new(stdin, stdout, socket).serve(service).await;
 }
 

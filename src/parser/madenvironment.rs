@@ -5,7 +5,7 @@ use tower_lsp::lsp_types::{CompletionItem, CompletionItemKind};
 
 use crate::{lexer::{Token, HasRange, CursorPosition}, semantic_tokens::{get_range_token}, error::UTF8_PARSER_MSG};
 
-use super::{Expression, MadGenericBuilder, Parser, insert_generic_builder, MadParam};
+use super::{Expression, MadGenericBuilder, Parser, insert_generic_builder, MadParam, MatchParam};
 
 pub const GENERIC_ENVS: Lazy<HashMap<&'static [u8], EnvironmentBuilder>> = Lazy::new(|| {
     let mut envs = HashMap::new();
@@ -71,7 +71,9 @@ pub fn insert_generic_env(map: &mut HashMap<&'static [u8], EnvironmentBuilder>,
     }
     let match_params = match_params.into_iter().map(|x| x.as_bytes().to_vec()).collect::<Vec<_>>();
 
-    map.insert(match_start, EnvironmentBuilder::new(match_start, match_end, genericmap, match_params));
+    map.insert(match_start, EnvironmentBuilder::new(match_start, match_end, genericmap,
+                                                    match_params.into_iter().map(|p| (p, vec![])).collect()
+                                                    ));
 }
 
 #[derive(Debug, PartialEq, Default)]
@@ -87,7 +89,7 @@ pub struct EnvironmentBuilder {
     match_start: &'static [u8],
     match_end: &'static [u8],
     generic_builders: HashMap<&'static [u8], MadGenericBuilder>,    
-    match_params: Vec<Vec<u8>>,
+    match_params: Vec<MatchParam>,
 }
 
 impl Environment {
@@ -147,7 +149,7 @@ impl HasRange for Environment {
 impl EnvironmentBuilder {
     pub fn new(match_start: &'static [u8], match_end: &'static [u8],
                generic_builders: HashMap<&'static [u8], MadGenericBuilder>,
-               match_params: Vec<Vec<u8>>) -> Self {
+               match_params: Vec<MatchParam>) -> Self {
         Self {
             match_start,
             match_end,

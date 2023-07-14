@@ -12,6 +12,7 @@ pub mod madenvironment;
 pub mod assignment;
 pub mod madmacro;
 pub mod problem;
+pub mod madexec;
 
 pub use expression::*;
 pub use madgeneric::*;
@@ -20,6 +21,7 @@ pub use madenvironment::*;
 pub use assignment::*;
 pub use madmacro::*;
 pub use problem::*;
+pub use madexec::*;
 
 #[derive(Debug)]
 pub struct Parser {
@@ -108,7 +110,7 @@ impl Parser {
         })
         .filter_map(|g| g.args.first()?.value.as_ref())
             .filter_map(|arg| String::from_utf8(self.get_element_bytes(&**arg)[1..].to_vec()).ok())
-            .filter_map(|filename| {log::info!("try include {}", filename); std::path::Path::new(&filename).canonicalize().ok() })
+            .filter_map(|filename| {std::path::Path::new(&filename).canonicalize().ok() })
             .filter_map(|filename| {
                 if let Some(fname) = filename.extension() {
                     if fname == "mad" || fname == "madx" {
@@ -221,6 +223,7 @@ impl Display for Parser {
                 Expression::Operator(_) => todo!(),
                 Expression::TokenExp(_) => writeln!(f, "Token({})", String::from_utf8_lossy(self.get_element_bytes(expr)))?,
                 Expression::Exit(_) => writeln!(f, "EXIT")?,
+                Expression::Exec(_) => writeln!(f, "exec (??)")?,
             }
         }
         Ok(())

@@ -7,6 +7,8 @@ use crate::{lexer::{Token, CursorPosition, HasRange}, semantic_tokens::{get_rang
 
 use super::{Expression, Parser, Problem};
 
+pub type MatchParam = (Vec<u8>, Vec<Vec<u8>>);
+
 // ---- const map of generic madx commands ---------------------------------------------------------
 
 pub const GENERIC_BUILTINS: Lazy<HashMap<&'static [u8], MadGenericBuilder>> = Lazy::new(|| {
@@ -78,6 +80,7 @@ pub const GENERIC_BUILTINS: Lazy<HashMap<&'static [u8], MadGenericBuilder>> = La
     insert_generic_builder(&mut builtins, b"vacdipole", &["l", "volt", "lag", "freq", "ramp1","ramp2","ramp3","ramp4", ]);
     insert_generic_builder(&mut builtins, b"rfmultipole", &["l", "volt", "lag", "freq", "harmon", "lrad", "tilt",
                            "knl", "ksl", "pnl", "psl"]);
+    insert_generic_builder(&mut builtins, b"save", &["file"]);
 
 
     builtins  
@@ -122,7 +125,7 @@ pub struct MadParam{
 
 pub struct MadGenericBuilder {
     pub match_name: &'static [u8],
-    pub match_params: Vec<Vec<u8>>,
+    pub match_params: Vec<MatchParam>,
 }
 
 // ---- impls --------------------------------------------------------------------------------------
@@ -142,12 +145,19 @@ impl MadGeneric {
         let range = self.get_range();
         if &range.0 < pos && pos < &range.1 {
             if let Some(builder) = &GENERIC_BUILTINS.get(self.match_name) {
-                for arg in builder.match_params.iter() {
+                for (arg, known_flags) in builder.match_params.iter() {
                     items.push(CompletionItem{
                         label: String::from_utf8(arg.to_vec()).unwrap_or_else(|_| UTF8_PARSER_MSG.to_string()),
                         kind: Some(CompletionItemKind::FIELD),
                         ..Default::default()
                     });
+                    for flag in known_flags.iter() {
+                    items.push(CompletionItem{
+                        label: String::from_utf8(flag.to_vec()).unwrap_or_else(|_| UTF8_PARSER_MSG.to_string()),
+                        kind: Some(CompletionItemKind::CONSTANT),
+                        ..Default::default()
+                    });
+                    }
                 }
             }
 
@@ -211,7 +221,13 @@ impl MadParam {
                 parser.advance();
                 // todo: missing test for syntax error
                 if let Some(expr) = Expression::parse(parser) {
-                    param.value = Some(Box::new(expr));
+                    if let Expression::MadGeneric(g) = expr {
+                        // a madgeneric can't be here, redirect it to TokenExp
+                        param.value = Some(Box::new(Expression::TokenExp(Token::Ident(g.get_range()))));
+                    }
+                    else {
+                        param.value = Some(Box::new(expr));
+                    }
                 }
             }
             if !param.attribute.is_eof() {
@@ -246,7 +262,7 @@ impl MadParam {
         (start, end)
     }
 
-    pub fn parse_params(parser: &mut Parser, match_params: &Vec<Vec<u8>>) -> Vec<Self> {
+    pub fn parse_params(parser: &mut Parser, match_params: &Vec<MatchParam>) -> Vec<Self> {
         let mut args = Vec::new();
         while let Some(token) = parser.peek_token() {
             if let Token::SemiColon(_) = token {
@@ -256,9 +272,12 @@ impl MadParam {
                 parser.advance();
                 //let param = MadParam::parse(parser)?;
                 if let Some(mut param) = MadParam::parse(parser) {
-                    if match_params.contains(&parser.get_element_bytes(&param.attribute)
-                                             .to_ascii_lowercase().to_vec()) {
-                        param.valid = true;
+                    let bytes = &parser.get_element_bytes(&param.attribute).to_ascii_lowercase().to_vec();
+                    for (p, _) in match_params.iter() {
+                        if p == bytes {
+                            param.valid = true;
+                            break;
+                        }
                     }
                     args.push(param);
                 }
@@ -301,9 +320,9 @@ impl MadGenericBuilder {
         None
     }
 
-    pub fn has_attribute(&self, name: &[u8]) -> bool {
-        self.match_params.iter().any(|p| p == name)
-    }
+    //pub fn has_attribute(&self, name: &[u8]) -> bool {
+    //    self.match_params.iter().any(|p| p == name)
+    //}
 }
 
 pub fn insert_generic_builder(map: &mut HashMap<&'static [u8], MadGenericBuilder>,
@@ -313,10 +332,34 @@ pub fn insert_generic_builder(map: &mut HashMap<&'static [u8], MadGenericBuilder
         match_name,
         MadGenericBuilder {
             match_name,
-            match_params: match_params.iter().map(|s| s.as_bytes().to_vec()).collect(),
+            match_params: match_params.iter()
+                .map(|s|
+                     (s.as_bytes().to_vec(),
+                     vec![])
+                    ).collect(),
         }
         );
 }
+
+/// Inserts a new generic builder with flags with known values, e.g. SELECT.
+pub fn insert_generic_builder_known_flags(map: &mut HashMap<&'static [u8], MadGenericBuilder>,
+                          match_name: &'static [u8],
+                          match_params: &[&str],
+                          known_flags: &[&[&str]]) {
+    map.insert(
+        match_name,
+        MadGenericBuilder {
+            match_name,
+            match_params: match_params.iter()
+                .zip(known_flags).map(|(s, f)| (
+                    s.as_bytes().to_vec(),
+                    f.iter().map(|flag| flag.as_bytes().to_vec()).collect()
+                    )
+                    ).collect(),
+        }
+        );
+}
+
 
 
 #[cfg(test)]

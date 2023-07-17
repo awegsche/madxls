@@ -140,7 +140,7 @@ impl LanguageServer for Backend {
             .await;
         let uri = &params.text_document.uri;
         if !self.documents.contains_key(uri) {
-            let document = document::Document::new(params.text_document.text.as_bytes());
+            let document = document::Document::new(Some(uri.clone()), params.text_document.text.as_bytes());
 
             // check the includes
             let includes = document.parser.includes.clone();
@@ -173,11 +173,17 @@ impl LanguageServer for Backend {
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         log::info!("hover");
         if let Some(doc) = self.documents.get(&params.text_document_position_params.text_document.uri) {
+            self.resubmit_diagnostics(&params.text_document_position_params.text_document.uri).await;
             let labels = doc.get_labels_under_cursor(params.text_document_position_params.position);
+            log::debug!("check hover for: {:?}", labels);
             let mut items = Vec::new();
             doc.get_hover(&labels, &mut items, None);
 
+            log::debug!("includes in file: {}", doc.parser.includes.len());
+            log::debug!("docs loaded: {}", self.documents.len());
+
             for (uri, incl) in doc.parser.includes.iter().filter_map(|uri| Some((uri, self.documents.get(uri)?))) {
+                log::debug!("checking in {}", uri.path());
                 incl.get_hover(&labels, &mut items, Some(uri));
             }
             return Ok(Some(Hover {
@@ -237,8 +243,10 @@ fn recheck_problems(uri: &Url, documents: &Arc<DashMap<Url, document::Document>>
 }
 
 fn reload_includes(uri: Url, documents: &Arc<DashMap<Url, document::Document>>) {
+    log::debug!("reloading includes for {}", uri.path());
     if !documents.contains_key(&uri) {
         if let Ok(doc) = document::Document::open(uri.path()) {
+            log::debug!("opened doc {}", uri.path());
             for incl in doc.parser.includes.iter().cloned() {
                 reload_includes(incl, documents);
             }

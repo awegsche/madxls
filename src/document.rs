@@ -21,14 +21,15 @@ impl Document {
         })
     }
 
-    pub fn new(text: &[u8]) -> Self {
+    pub fn new(uri: Option<Url>, text: &[u8]) -> Self {
         Self {
-            parser: Parser::from_bytes(text.to_vec())
+            parser: Parser::from_bytes(text.to_vec(), uri)
         }
     }
 
     pub fn reload(&mut self, text: &[u8]) {
-        self.parser = Parser::from_bytes(text.to_vec());
+        let uri = self.parser.uri.clone();
+        self.parser = Parser::from_bytes(text.to_vec(), uri);
         //self.parser.scan_includes();
     }
 
@@ -174,7 +175,7 @@ mod tests {
 
     #[test]
     fn test_simple() {
-        let doc = Document::new(b"option, echo;\ntwiss, sequence=lhcb1, file=\"twiss.dat\";");
+        let doc = Document::new(None, b"option, echo;\ntwiss, sequence=lhcb1, file=\"twiss.dat\";");
 
         let st = doc.get_semantic_tokens();
         let completion = doc.get_completion(Some(Position { line: 0, character: 0 }));
@@ -183,7 +184,7 @@ mod tests {
 
     #[test]
     fn test_incomplete_env() {
-        let doc = Document::new(b"option, echo;\nseqedit; flatten;\ntwiss, sequence = lhcb1;");
+        let doc = Document::new(None, b"option, echo;\nseqedit; flatten;\ntwiss, sequence = lhcb1;");
 
         let st = doc.get_semantic_tokens();
         let completion = doc.get_completion(Some(Position { line: 1, character: 10 }));
@@ -192,7 +193,7 @@ mod tests {
 
     #[test]
     fn test_incomplete_generic() {
-        let doc = Document::new(b"option, echo;\ncall, fi");
+        let doc = Document::new(None, b"option, echo;\ncall, fi");
 
         let st = doc.get_semantic_tokens();
         let completion = doc.get_completion(Some(Position { line: 1, character: 21 }));
@@ -219,7 +220,7 @@ mod tests {
             "do_twiss(filename): macro = {\n  twiss, sequence=lhcb1;\n}",
             ";",
         ];
-        let doc = Document::new(elements.join("\n").as_bytes());
+        let doc = Document::new(None, elements.join("\n").as_bytes());
         let expressions = doc.parser.get_elements();
 
         assert_eq!(doc.parser.get_element_str(&expressions[0]), elements[0]);
@@ -235,14 +236,14 @@ mod tests {
 
     #[test]
     fn test_file_lhc_macros() {
-        let doc = Document::new(include_bytes!("../tests/macros/lhc.macros.run3.madx"));
+        let doc = Document::new(None, include_bytes!("../tests/macros/lhc.macros.run3.madx"));
 
 
     }
 
     #[test]
     fn get_hover() {
-        let doc = Document::new(b"
+        let doc = Document::new(None, b"
 do_twiss(a,b): macro = { twiss, sequence=lhcb1;};
 option, echo;
 

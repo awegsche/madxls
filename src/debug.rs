@@ -1,5 +1,7 @@
 use std::{path::{Path, PathBuf}, time::Instant};
 
+use tower_lsp::lsp_types::Url;
+
 use crate::{lexer::*, parser::{Expression, Parser}};
 
 pub fn print_ast(file: String) {
@@ -35,7 +37,8 @@ pub fn print_ast(file: String) {
 
 pub fn debug_parser() {
     //let mut parser = Parser::from_str("! hello\ncall, file;");
-    let parser = Parser::from_bytes(include_bytes!("/home/awegsche/fellow/40_magnet_sorting/job.madx").to_vec());
+    static PATH: &str = "/home/awegsche/fellow/40_magnet_sorting/job.madx";
+    let parser = Parser::from_bytes(include_bytes!( "/home/awegsche/fellow/40_magnet_sorting/job.madx").to_vec(), Url::from_file_path(PATH).ok());
 
     println!("{}", parser);
 

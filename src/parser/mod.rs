@@ -1,5 +1,5 @@
 
-use std::{fmt::Display, collections::HashMap, error::Error};
+use std::{fmt::Display, collections::HashMap, error::Error, path::{Path, PathBuf}};
 
 use tower_lsp::lsp_types::{Url, SemanticToken, SemanticTokenType, Position};
 
@@ -75,8 +75,8 @@ impl Parser {
         parser
     }
 
-    pub fn from_bytes(bytes: Vec<u8>) -> Self {
-        Self::from_lexer(None, Lexer::from_bytes(bytes))
+    pub fn from_bytes(bytes: Vec<u8>, uri: Option<Url>) -> Self {
+        Self::from_lexer(uri, Lexer::from_bytes(bytes))
     }
 
     pub fn from_str(str: &str) -> Self {
@@ -99,7 +99,8 @@ impl Parser {
 
     pub fn scan_includes(&mut self) {
         log::info!("scanning includes");
-        self.includes = self.elements.iter().filter_map(|e| match e {
+
+        let call_cmds = self.elements.iter().filter_map(|e| match e {
             Expression::MadGeneric(g) => {
                 if g.match_name == b"call" {
                     Some(g)
@@ -107,12 +108,16 @@ impl Parser {
                     None
                 }
             },_ => None
-        })
-        .filter_map(|g| g.args.first()?.value.as_ref())
-            .filter_map(|arg| String::from_utf8(self.get_element_bytes(&**arg)[1..].to_vec()).ok())
-            .filter_map(|filename| {std::path::Path::new(&filename).canonicalize().ok() })
+        });
+
+        log::debug!("call commands: {}", call_cmds.clone().count());
+
+        self.includes = call_cmds        .filter_map(|g| g.args.first()?.value.as_ref())
+            .filter_map(|arg| get_path_relative_to_parent(self.uri.as_ref(), self.get_element_bytes(&**arg)[1..].to_vec())
+            )
             .filter_map(|filename| {
                 if let Some(fname) = filename.extension() {
+                    log::debug!("filename include: {}", filename.display());
                     if fname == "mad" || fname == "madx" {
                         if filename.exists() {
                             return Some(filename);
@@ -229,6 +234,32 @@ impl Display for Parser {
         Ok(())
     }
 }
+
+/// we assume that madx scripts are runnable in their respective working directory,
+/// so we search for includes there.
+///
+/// If this fails, we return the path as-is (i.e. relative to current working dir) nevertheless,
+/// because we are very permissive here.
+/// This might, of course, lead to false positives which could be problematic for the workflow.
+///
+/// # Params:
+/// * `uri` - the Url of the parent document (.madx script) 
+/// * `bytes` - the bytes from `Parser::get_element_bytes()` from the `"call"` `MadGeneric`
+fn get_path_relative_to_parent(uri: Option<&Url>, bytes: Vec<u8>) -> Option<PathBuf> {
+    let call_path = String::from_utf8(bytes).ok()?;
+    if let Some(uri) = uri {
+        let root = uri.to_file_path().ok()?.parent()?.to_path_buf();
+        let p = root.join(call_path).canonicalize();
+        println!("{:?}", p);
+        p.ok()
+    }
+    else {
+        let pb: PathBuf = call_path.into();
+        println!("no base uri: {}", pb.display());
+        pb.canonicalize().ok()
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

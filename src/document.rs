@@ -249,7 +249,7 @@ option, echo;
 exec, do_twiss(0, 0);
                                 ");
 
-        let labels = doc.get_labels_under_cursor(Position::new(5, 9));
+        let labels = doc.get_labels_under_cursor(Position::new(4, 9));
 
         assert_eq!(labels, [b"do_twiss"]);
         let mut items = vec![];

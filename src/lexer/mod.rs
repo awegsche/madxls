@@ -80,7 +80,7 @@ impl Lexer {
     }
 
     pub fn cursor_pos_from_text_pos(&self, pos: Position) -> CursorPosition {
-        CursorPosition::new(pos.character as usize + self.lines[pos.line as usize - 1], pos.line as usize)
+        CursorPosition::new(pos.character as usize + self.lines[pos.line as usize], pos.line as usize)
     }
 
     pub fn cursor_pos_to_text_pos(&self, pos: CursorPosition) -> Position {

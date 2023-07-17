@@ -2,7 +2,7 @@ use tower_lsp::lsp_types::{CompletionItem, SemanticToken};
 
 use crate::{lexer::{Token, CursorPosition, HasRange}, semantic_tokens::get_range_token};
 
-use super::{Expression, Parser, Assignment};
+use super::{Expression, Parser, Assignment, Problem};
 
 #[derive(Debug, PartialEq, Default)]
 pub struct Macro {
@@ -138,6 +138,12 @@ impl Macro {
 
         for e in self.body.iter() {
             e.to_semantic_token(semantic_tokens, pre_line, pre_start, parser);
+        }
+    }
+
+    pub(crate) fn get_problems(&self, problems: &mut Vec<Problem>) {
+        for e in self.body.iter() {
+            e.get_problems(problems);
         }
     }
 }

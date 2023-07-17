@@ -5,7 +5,7 @@ use tower_lsp::lsp_types::{CompletionItem, CompletionItemKind};
 
 use crate::{lexer::{Token, HasRange, CursorPosition}, semantic_tokens::{get_range_token}, error::UTF8_PARSER_MSG};
 
-use super::{Expression, MadGenericBuilder, Parser, insert_generic_builder, MadParam, MatchParam};
+use super::{Expression, MadGenericBuilder, Parser, insert_generic_builder, MadParam, MatchParam, Problem};
 
 pub const GENERIC_ENVS: Lazy<HashMap<&'static [u8], EnvironmentBuilder>> = Lazy::new(|| {
     let mut envs = HashMap::new();
@@ -136,6 +136,13 @@ impl Environment {
             return Some(parser.get_element_bytes(&range));
         }
         None
+    }
+
+    pub(crate) fn get_problems(&self, problems: &mut Vec<Problem>) {
+        log::debug!("forwarding problems for {} expressions", self.expressions.len());
+        for e in self.expressions.iter() {
+            e.get_problems(problems);
+        }
     }
 }
 

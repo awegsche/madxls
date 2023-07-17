@@ -75,13 +75,13 @@ impl Expression {
     pub fn get_problems(&self, problems: &mut Vec<Problem>) {
         match self {
             Expression::Label(_) => {},
-            Expression::Macro(_) => {},
-            Expression::Assignment(_) => {},
+            Expression::Macro(m) => {m.get_problems(problems)},
+            Expression::Assignment(a) => {a.get_problems(problems)},
             Expression::String(_) => {},
             Expression::Comment(_) => {},
             Expression::Symbol(_) => {},
             Expression::MadGeneric(g) => g.get_problems(problems),
-            Expression::MadEnvironment(_) => {},
+            Expression::MadEnvironment(e) => {e.get_problems(problems)},
             Expression::Exit(_) => {},
             Expression::Operator(_) => {},
             Expression::Exec(e) => e.get_problems(problems),

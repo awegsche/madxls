@@ -217,7 +217,6 @@ fn recheck_problems(uri: &Url, documents: &Arc<DashMap<Url, document::Document>>
     if let Some(doc) =  documents.get(uri) {
 
         log::debug!("rechecking {}", uri.path());
-        log::debug!("children:");
         for incl in doc.parser.includes.iter() {
             recheck_problems(incl, documents, problems);
         }
@@ -227,9 +226,10 @@ fn recheck_problems(uri: &Url, documents: &Arc<DashMap<Url, document::Document>>
             match p.problem.as_ref() {
                 Some(Problem::MissingCallee(c, _)) => {
                     // look for callee in labels
+                    log::debug!("check problem {}", String::from_utf8(c.clone()).unwrap());
                     for (label, _) in doc.parser.labels.iter() {
                         if label == c {
-                            log::debug!("match");
+                            log::debug!("-> match");
                             p.problem = None;
                             break;
                         }

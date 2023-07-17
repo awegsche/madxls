@@ -1,6 +1,6 @@
 use crate::lexer::{Token, HasRange, CursorPosition};
 
-use super::{Expression, Parser};
+use super::{Expression, Parser, Problem};
 
 #[derive(Debug, PartialEq)]
 pub struct Assignment {
@@ -42,6 +42,12 @@ impl Assignment {
             return rhs.get_label(pos, parser);
         }
         None
+    }
+
+    pub(crate) fn get_problems(&self, problems: &mut Vec<Problem>) {
+        if let Some(e) = &self.rhs {
+            e.get_problems(problems);
+        }
     }
 }
 

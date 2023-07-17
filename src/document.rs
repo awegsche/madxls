@@ -34,6 +34,18 @@ impl Document {
     }
 
     pub fn get_diagnostics(&self) -> Vec<MaybeProblem> {
+
+        log::debug!("parser.problems:");
+        for p in self.parser.problems.iter() {
+            match p {
+                Problem::MissingCallee(_, range) => log::debug!("MissingCalle: {}", self.parser.get_element_str(range)),
+                Problem::InvalidParam(range) => log::debug!("InvalidParam: {}", self.parser.get_element_str(range)),
+                Problem::Error(_, _, _) => {},
+                Problem::Warning(_, _, _) => {},
+                Problem::Hint(_, _, _) => {},
+            };
+        }
+
         self.parser.problems.iter().map(|p| {
             let range = match p {
                 crate::parser::Problem::MissingCallee(_, range) => range,

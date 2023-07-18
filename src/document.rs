@@ -101,7 +101,8 @@ impl Document {
             // first, look in named labels
             if let Some(index) = self.parser.labels.get(*label) {
                 let comment = if *index > 0 {
-                    self.parser.get_element_str(&self.parser.get_elements()[*index-1]).to_string()}
+                    sanitize_string_for_md(self.parser.get_element_str(&self.parser.get_elements()[*index-1]).to_string())
+                }
                 else {
                      String::new()
                 };
@@ -142,7 +143,7 @@ impl Document {
                 };
 
                 items.push(MarkedString::String(
-                        format!("{}\n---\n{}\n---\ndefined in {}line {}",
+                        format!("{}\n---\n{}\n---\ndefined in {}line {}\n\n",
                                 signature, comment, location, line
                                 )));
             }
@@ -177,6 +178,10 @@ impl Document {
 
         items
     }
+}
+
+pub fn sanitize_string_for_md(s: String) -> String {
+    s.replace("*", "\\*").replace("_", "\\_")
 }
 
 #[cfg(test)]

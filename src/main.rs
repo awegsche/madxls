@@ -133,6 +133,11 @@ impl LanguageServer for Backend {
                     )))
     }
 
+
+    async fn will_save(&self, params: WillSaveTextDocumentParams) {
+        self.resubmit_diagnostics(&params.text_document.uri).await;
+    }
+
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         log::info!("did open");
         self.client
@@ -165,6 +170,14 @@ impl LanguageServer for Backend {
         if let Some(mut document) = self.documents.get_mut(&params.text_document.uri) {
             document.reload(params.content_changes[0].text.as_bytes());
             //self.client.publish_diagnostics(params.text_document.uri.clone(), document.get_diagnostics(), None).await;
+            // check the includes
+            let includes = document.parser.includes.clone();
+            let docs = self.documents.clone();
+            tokio::spawn(async move {
+                for incl in includes.into_iter() {
+                    reload_includes(incl, &docs);
+                }
+            });
         }
         self.resubmit_diagnostics(&params.text_document.uri).await;
     }

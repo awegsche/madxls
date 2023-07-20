@@ -219,15 +219,25 @@ impl MadParam {
             }
             if let Some(Token::Equal(_)) = parser.peek_token() {
                 parser.advance();
+                
+                let last_pos = parser.get_position();
                 // todo: missing test for syntax error
                 if let Some(expr) = Expression::parse(parser) {
-                    if let Expression::MadGeneric(g) = expr {
-                        // a madgeneric can't be here, redirect it to TokenExp
-                        param.value = Some(Box::new(Expression::TokenExp(Token::Ident(g.get_range()))));
-                    }
-                    else {
-                        param.value = Some(Box::new(expr));
-                    }
+                    param.value = match expr {
+                        Expression::MadGeneric(_) => {
+                            parser.set_position(last_pos);
+                            let token = parser.next_token().unwrap(); // we know that here's a
+                                                                      // valid token
+                            Some(Box::new(Expression::TokenExp(token.clone())))
+                        },
+                        Expression::MadEnvironment(_) => {
+                            parser.set_position(last_pos);
+                            let token = parser.next_token().unwrap(); // we know that here's a
+                                                                      // valid token
+                            Some(Box::new(Expression::TokenExp(token.clone())))
+                        },
+                        _ => Some(Box::new(expr))
+                    };
                 }
             }
             if !param.attribute.is_eof() {

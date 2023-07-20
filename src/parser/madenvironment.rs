@@ -54,6 +54,38 @@ pub const GENERIC_ENVS: Lazy<HashMap<&'static [u8], EnvironmentBuilder>> = Lazy:
         "aperture", "dump"
         ]);
 
+    insert_generic_env(
+        &mut envs, b"ptc_create_universe", b"ptc_end",
+        &[
+        ("ptc_create_layout", &[
+         "time", "model", "method", "nst", "exact", "offset_deltap", "errors_out",
+         "magnet_name", "resplit", "thin", "xbend", "even"
+        ]),
+        ("ptc_move_to_layout", &["index"]),
+        ("ptc_read_errors", &["overwrite"]),
+        ("ptc_align", &[]),
+        ("ptc_start", &[
+         "x", "y", "px", "py", "t", "pt", "fx", "phix", "phiy", "ft", "fy", "phit"
+        ]),
+        ("ptc_observe", &["place"]),
+        ("ptc_track", &[
+         "icase", "deltap", "closed_orbit", "element_by_element", "turns", "dump", "onetable",
+         "maxaper", "norm", "norm_out", "file", "extension", "ffile", "radiation", "radiation_model1",
+         "radiation_energy_loss", "radiation_quadr", "beam_envelope", "space_charge"
+        ]),
+        ("ptc_track_line", &["turns", "onetable", "file", "extension", "rootntuple", "everystep", 
+         "tableallsteps", "gcs"]),
+        ("ptc_track_end", &[]),
+        ("ptc_twiss", &["icase", "deltap", "closed_orbit", "deltap_dependency", "slice_magnets",
+         "range", "file", "table", "initial_matrix_table", "initial_matrix_manual", "initial_map_manual",
+         "beta0", "maptable", "ignore_map_orbit", "ring_parameters", "betx", "bety", "alfx", "alfy", "mux", "muy",
+         "dx", "dy", "dpx", "dpy", "x", "y", "px", "py", "t", "pt", 
+         // todo: see what can be done about re11 .. re66
+          ]),
+        ],
+        &[
+        "sector_nmul_max", "sector_nmul", "ntpsa", "symprint"
+        ]);
     envs
 });
 

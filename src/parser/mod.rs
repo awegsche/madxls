@@ -169,6 +169,12 @@ impl Parser {
         self.lexer.get_tokens().get(self.position)
     }
 
+    pub fn next_token(&mut self) -> Option<&Token> {
+        let pos = self.position;
+        self.advance();
+        self.lexer.get_tokens().get(pos)
+    }
+
     // ---- cursor movement ------------------------------------------------------------------------
 
     pub fn advance(&mut self) {

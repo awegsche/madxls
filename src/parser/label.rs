@@ -48,7 +48,7 @@ mod tests {
 
     #[test]
     fn parse_label() {
-        let parser = Parser::from_bytes(b"label: twiss, sequence=lhcb;".to_vec());
+        let parser = Parser::from_bytes(b"label: twiss, sequence=lhcb;".to_vec(), None);
 
         if let Expression::Label(label) = &parser.get_elements()[0] {
             assert_eq!(parser.get_element_str(&label.name), "label");

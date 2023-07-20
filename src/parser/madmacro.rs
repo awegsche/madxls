@@ -111,10 +111,16 @@ impl Macro {
 
         while let Some(token) = parser.peek_token().cloned() {
             parser.advance();
-            if let Token::ParentClose(parenclose) = token {
-                end = parenclose;
+            match token {
+                Token::ParentClose(parenclose) => {
+                    end = parenclose;
 
-                return Some((start, tokens, end));
+                    return Some((start, tokens, end));
+                }
+                Token::Ident(ident) => {
+                    tokens.push(Token::Ident(ident));
+                }
+                _ => {}
             }
         }
 

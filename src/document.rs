@@ -1,9 +1,7 @@
-use std::collections::HashMap;
 use std::path::Path;
-use std::string::ParseError;
 
 use tower_lsp::jsonrpc::Result;
-use tower_lsp::lsp_types::{SemanticTokensResult, SemanticTokens, Position, CompletionResponse, CompletionItem, CompletionItemKind, MarkedString, Url, Diagnostic, Range, DiagnosticSeverity};
+use tower_lsp::lsp_types::{SemanticTokensResult, SemanticTokens, Position, CompletionItem, CompletionItemKind, MarkedString, Url, Range, DocumentHighlight};
 
 use crate::error::UTF8_PARSER_MSG;
 use crate::lexer::HasRange;
@@ -186,7 +184,6 @@ pub fn sanitize_string_for_md(s: String) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
 
     use super::*;
 
@@ -194,8 +191,8 @@ mod tests {
     fn test_simple() {
         let doc = Document::new(None, b"option, echo;\ntwiss, sequence=lhcb1, file=\"twiss.dat\";");
 
-        let st = doc.get_semantic_tokens();
-        let completion = doc.get_completion(Some(Position { line: 0, character: 0 }));
+        let _ = doc.get_semantic_tokens();
+        let _ = doc.get_completion(Some(Position { line: 0, character: 0 }));
          
     }
 
@@ -203,8 +200,8 @@ mod tests {
     fn test_incomplete_env() {
         let doc = Document::new(None, b"option, echo;\nseqedit; flatten;\ntwiss, sequence = lhcb1;");
 
-        let st = doc.get_semantic_tokens();
-        let completion = doc.get_completion(Some(Position { line: 1, character: 10 }));
+        let _ = doc.get_semantic_tokens();
+        let _ = doc.get_completion(Some(Position { line: 1, character: 10 }));
 
     }
 
@@ -253,7 +250,7 @@ mod tests {
 
     #[test]
     fn test_file_lhc_macros() {
-        let doc = Document::new(None, include_bytes!("../tests/macros/lhc.macros.run3.madx"));
+        let _doc = Document::new(None, include_bytes!("../tests/macros/lhc.macros.run3.madx"));
 
 
     }

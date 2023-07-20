@@ -81,6 +81,10 @@ impl LanguageServer for Backend {
                     trigger_characters: Some(vec![".".to_string(), ",".to_string()]),
                     ..Default::default()
                 }),
+                document_highlight_provider:
+                    Some(OneOf::Right(
+                            DocumentHighlightOptions{work_done_progress_options:
+                            WorkDoneProgressOptions{work_done_progress: Some(false)}})),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 semantic_tokens_provider: Some(
                                               SemanticTokensServerCapabilities::SemanticTokensRegistrationOptions(
@@ -131,6 +135,21 @@ impl LanguageServer for Backend {
         Ok(Some(CompletionResponse::Array(
                     items
                     )))
+    }
+
+    async fn document_highlight(
+        &self,
+        params: DocumentHighlightParams,
+    ) -> Result<Option<Vec<DocumentHighlight>>> {
+        log::debug!("highlights triggered");
+        if let Some(doc) = self.documents.get(&params.text_document_position_params.text_document.uri) {
+            let hi = doc.get_document_highlights(&params.text_document_position_params.position);
+            if let Ok(Some(h)) = &hi {
+            log::debug!("get some highlights: {}", h.len());
+            }
+            return hi;
+        }
+        Ok(None)
     }
 
 

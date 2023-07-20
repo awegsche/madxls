@@ -62,6 +62,22 @@ impl Document {
         }).collect()
     }
 
+
+    pub fn get_document_highlights(&self, pos: &Position) -> Result<Option<Vec<DocumentHighlight>>> {
+        let position = self.parser.lexer.cursor_pos_from_text_pos(*pos);
+        if let Some(exp) = self.parser.get_expression_at(position) {
+            let highlights = exp.get_highlights(&position, &self.parser);
+
+            return Ok(Some(highlights.iter().map(|range| DocumentHighlight{
+                range: Range::new(
+                self.parser.lexer.cursor_pos_to_text_pos(range.0),
+                self.parser.lexer.cursor_pos_to_text_pos(range.1)
+                ),
+                kind: None}).collect()));
+        }
+        Ok(None)
+    }
+
     pub fn get_semantic_tokens(&self) -> Result<Option<SemanticTokensResult>> {
         let mut pre_line = 0;
         let mut pre_start = 0;

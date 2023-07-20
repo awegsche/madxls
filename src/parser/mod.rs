@@ -44,6 +44,7 @@ pub const LEGEND_TYPE: &[SemanticTokenType] = &[
     SemanticTokenType::MACRO,       // 6
     SemanticTokenType::NAMESPACE,   // 7
     SemanticTokenType::KEYWORD,     // 8
+    SemanticTokenType::KEYWORD,    // 9
 ];
 
 impl Parser {

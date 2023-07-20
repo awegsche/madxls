@@ -191,6 +191,23 @@ impl Expression {
         }
 
     }
+
+    pub(crate) fn get_highlights(&self, pos: &CursorPosition, parser: &Parser) -> Vec<(CursorPosition, CursorPosition)> {
+        match self {
+            Expression::Label(_) => vec![],
+            Expression::Macro(m) => m.get_highlights(pos, parser),
+            Expression::Assignment(_) => vec![],
+            Expression::String(_) => vec![],
+            Expression::Comment(_) => vec![],
+            Expression::Symbol(_) => vec![],
+            Expression::MadGeneric(_) => vec![],
+            Expression::MadEnvironment(_) => vec![],
+            Expression::Exit(_) => vec![],
+            Expression::Operator(_) => vec![],
+            Expression::Exec(_) => vec![],
+            Expression::TokenExp(_) => vec![],
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]

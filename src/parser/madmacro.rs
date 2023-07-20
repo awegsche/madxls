@@ -146,6 +146,32 @@ impl Macro {
             e.get_problems(problems);
         }
     }
+
+    pub(crate) fn get_highlights(&self, pos: &CursorPosition, parser: &Parser) -> Vec<(CursorPosition, CursorPosition)> {
+        
+        let mut arg_tokens: Vec<(CursorPosition, CursorPosition)> = Vec::new();
+        let mut arg_tokens = Vec::new();
+        let start_inner = self.macro_pos.get_range().1;
+        if let Ok(inner_text) = String::from_utf8(parser.get_element_bytes(&(start_inner, self.end))
+            .to_ascii_lowercase()) {
+
+
+            for arg in self.args.iter()
+                .filter_map(|arg| String::from_utf8(parser.get_element_bytes(arg).to_ascii_lowercase()).ok()) {
+                    log::debug!("look for arg {}", arg);
+                    arg_tokens.extend(inner_text.match_indices(&arg).map(|(idx, _)| {
+                        let mut pos0 = start_inner;
+                        let mut pos1 = start_inner;
+                        parser.lexer.advance_cursor(&mut pos0, idx);
+                        parser.lexer.advance_cursor(&mut pos1, idx + arg.len());
+                        (pos0, pos1)
+                    }));
+                }
+        }
+
+        arg_tokens
+
+    }
 }
 
 impl HasRange for Macro {

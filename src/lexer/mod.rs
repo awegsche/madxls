@@ -87,6 +87,15 @@ impl Lexer {
         Position::new(pos.line() as u32, pos.character(&self.lines) as u32)
     }
 
+    /// advancing the CursorPosition `cursor` by `by` characters, taking into account line breaks
+    pub fn advance_cursor(&self, cursor: &mut  CursorPosition, by: usize) {
+        let mut by_rest = by;
+        *cursor += by;
+        while self.lines[cursor.line()] < cursor.absolute() {
+            cursor.advance_line()
+        }
+    }
+
     pub fn get_token_byte(&self, position: &CursorPosition) -> &u8 {
         &self.buffer[position.absolute()]
     }

@@ -22,7 +22,12 @@ An LSP implementation for the [MADX](http://mad.web.cern.ch/mad/) scripting lang
   ``` sh
   git clone git@github.com:awegsche/madxls.git
   ```
-- Use it with your code editor
+- Install with cargo
+  ``` sh
+  cd madxls
+  cargo install
+  ```
+- Use it with your code editor, see below.
 
 ## Code Editor Specific Usage
 

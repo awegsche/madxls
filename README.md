@@ -9,26 +9,22 @@ An LSP implementation for the [MADX](http://mad.web.cern.ch/mad/) scripting lang
     - [x] defined macros
     - [ ] built-in commands
     - [ ] variables in scope
-- [ ] errors
+- [ ] Errors
     - [ ] syntax errors
     - [x] command usage
-- [ ] hints
-- [ ] jump to definition
+- [ ] Hints
+- [ ] Jump to definition
 
 ## Usage
 
 - Install the [rust toolchain ](https://www.rust-lang.org/learn/get-started)
-- Checkout this repository
-  ``` sh
-  git clone git@github.com:awegsche/madxls.git
-  ```
 - Install with cargo
   ``` sh
-  cd madxls
-  cargo install
+  cargo install --git https://github.com/awegsche/madxls.git
   ```
-- Add cargo bin dir to PATH (todo: some hints on how to do that)
-- Use it with your code editor, see below.
+- Maybe you then have to add the cargo bin dir to PATH (todo: some hints on how to do that).
+- Use it with your code editor. If your code editor supports the LSP, this is just a matter of
+adding a corresponding entry in your configuration file. Some examples are listed below:
 
 ## Code Editor Specific Usage
 
@@ -40,7 +36,7 @@ Add the following to your configuration (todo: simplify this):
 function StartMadx()
     vim.lsp.start({
         name = "madx",
-        cmd = {"madx"},
+        cmd = {"madxls"},
     })
 end
 

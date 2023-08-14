@@ -20,7 +20,7 @@ An LSP implementation for the [MADX](http://mad.web.cern.ch/mad/) scripting lang
 - Install the [rust toolchain ](https://www.rust-lang.org/learn/get-started)
 - Checkout this repository
   ``` sh
-  git clone ...
+  git clone git@github.com:awegsche/madxls.git
   ```
 - Use it with your code editor
 
@@ -28,7 +28,7 @@ An LSP implementation for the [MADX](http://mad.web.cern.ch/mad/) scripting lang
 
 ### nvim
 
-Add the following to your ocnfiguration (todo: simplify this):
+Add the following to your configuration (todo: simplify this):
 
 ```lua
 function StartMadx()

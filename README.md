@@ -5,7 +5,7 @@ An LSP implementation for the [MADX](http://mad.web.cern.ch/mad/) scripting lang
 ## Features
 
 - [x] Semantic highlighting (in progress, most commands are done)
-- [x] Hover 
+- [ ] Hover 
     - [x] defined macros
     - [ ] built-in commands
     - [ ] variables in scope
@@ -27,11 +27,12 @@ An LSP implementation for the [MADX](http://mad.web.cern.ch/mad/) scripting lang
   cd madxls
   cargo install
   ```
+- Add cargo bin dir to PATH (todo: some hints on how to do that)
 - Use it with your code editor, see below.
 
 ## Code Editor Specific Usage
 
-### nvim
+### neovim
 
 Add the following to your configuration (todo: simplify this):
 
@@ -39,7 +40,7 @@ Add the following to your configuration (todo: simplify this):
 function StartMadx()
     vim.lsp.start({
         name = "madx",
-        cmd = {"/media/awegsche/HDD1/rust/madxls/target/release/madxls"},
+        cmd = {"madx"},
     })
 end
 
@@ -53,3 +54,7 @@ vim.api.nvim_create_autocmd({"BufEnter", "BufWinEnter"}, {
 ### vscode
 
 Wait for a madxls plugin
+
+### emacs
+
+cf. emacs LSP configuration

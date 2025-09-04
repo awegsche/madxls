@@ -2,7 +2,6 @@ use std::fmt::Display;
 
 use super::{CursorPosition, HasRange};
 
-
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Token {
     BraceOpen(CursorPosition),
@@ -13,6 +12,7 @@ pub enum Token {
     Number((CursorPosition, CursorPosition)),
     Operator(CursorPosition),
     Equal(CursorPosition),
+    DoubleEqual(CursorPosition),
     ColonEqual(CursorPosition),
     Dot(CursorPosition),
     SemiColon(CursorPosition),
@@ -34,7 +34,7 @@ impl HasRange for Token {
             Token::ParentOpen(p) => (*p, p + 1),
             Token::ParentClose(p) => (*p, p + 1),
             Token::Ident((s, e)) => (*s, *e),
-            Token::Number((s,e)) => (*s, *e),
+            Token::Number((s, e)) => (*s, *e),
             Token::Operator(p) => (*p, p + 1),
             Token::Equal(p) => (*p, p + 1),
             Token::ColonEqual(p) => (*p, p + 2),
@@ -44,10 +44,11 @@ impl HasRange for Token {
             Token::Komma(p) => (*p, p + 1),
             Token::Quotes(p) => (*p, p + 1),
             Token::DoubleQuotes(p) => (*p, p + 1),
-            Token::Comment((s,e)) => (*s, *e),
+            Token::Comment((s, e)) => (*s, *e),
             Token::MultilineComment(v) => (v[0].0, v.last().unwrap().1),
             Token::Char(p) => (*p, p + 1),
             Token::EOF => (CursorPosition::default(), CursorPosition::default()),
+            Token::DoubleEqual(p) => (*p, p + 2),
         }
     }
 }
@@ -59,7 +60,6 @@ impl Default for Token {
 }
 
 impl Token {
-
     pub fn is_eof(&self) -> bool {
         matches!(self, Token::EOF)
     }
@@ -80,9 +80,7 @@ impl Token {
         match self {
             Token::Equal(_) => true,
             Token::ColonEqual(_) => true,
-            _ => false
+            _ => false,
         }
     }
 }
-
-

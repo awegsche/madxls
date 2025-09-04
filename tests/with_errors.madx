@@ -1,0 +1,27 @@
+condition = 1;
+
+if(condition == 1) {
+    value, condition;
+
+    if (condition == 1) {
+        value, condition;
+    }
+}
+
+fn_one(p1): macro = {
+    value, p1 + 1;
+}
+
+exec, fn_one(1);
+
+track_file(filename): macro = {
+  ! Tracking routine, will output file named "trackone"
+  TRACK, FILE=filename, ONEPASS=True, DUMP=True, ONETABLE=TRUE; ! ONETABLE puts observation from all points in the same file (instead of one file per observation point)
+  START, X=1.0e-7, Y=1.0e-7;
+  exec, define_madx_observation_points(); ! Defined all BPMs as observation points
+  RUN, TURNS=6000;
+  !RUN, TURNS=10800;
+  ENDTRACK;
+}
+
+exec, track_file("hello");

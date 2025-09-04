@@ -1,27 +1,36 @@
+use std::{
+    collections::HashMap,
+    error::Error,
+    fmt::Display,
+    path::{Path, PathBuf},
+};
 
-use std::{fmt::Display, collections::HashMap, error::Error, path::{Path, PathBuf}};
+use tower_lsp::lsp_types::{Position, SemanticToken, SemanticTokenType, Url};
 
-use tower_lsp::lsp_types::{Url, SemanticToken, SemanticTokenType, Position};
+use crate::{
+    error::{MadxLsError, UTF8_PARSER_MSG},
+    lexer::{CursorPosition, HasRange, Lexer, Token},
+};
 
-use crate::{lexer::{Token, Lexer, CursorPosition, HasRange}, error::{MadxLsError, UTF8_PARSER_MSG}};
-
+pub mod assignment;
 pub mod expression;
-pub mod madgeneric;
 pub mod label;
 pub mod madenvironment;
-pub mod assignment;
+pub mod madexec;
+pub mod madgeneric;
+pub mod madif;
 pub mod madmacro;
 pub mod problem;
-pub mod madexec;
 
+pub use assignment::*;
 pub use expression::*;
-pub use madgeneric::*;
 pub use label::*;
 pub use madenvironment::*;
-pub use assignment::*;
+pub use madexec::*;
+pub use madgeneric::*;
+pub use madif::*;
 pub use madmacro::*;
 pub use problem::*;
-pub use madexec::*;
 
 #[derive(Debug)]
 pub struct Parser {
@@ -35,21 +44,24 @@ pub struct Parser {
 }
 
 pub const LEGEND_TYPE: &[SemanticTokenType] = &[
-    SemanticTokenType::TYPE,        // 0
-    SemanticTokenType::STRING,      // 1
-    SemanticTokenType::COMMENT,     // 2
-    SemanticTokenType::OPERATOR,    // 3
-    SemanticTokenType::FUNCTION,    // 4
-    SemanticTokenType::PARAMETER,   // 5
-    SemanticTokenType::MACRO,       // 6
-    SemanticTokenType::NAMESPACE,   // 7
-    SemanticTokenType::KEYWORD,     // 8
-    SemanticTokenType::KEYWORD,    // 9
+    SemanticTokenType::TYPE,      // 0
+    SemanticTokenType::STRING,    // 1
+    SemanticTokenType::COMMENT,   // 2
+    SemanticTokenType::OPERATOR,  // 3
+    SemanticTokenType::FUNCTION,  // 4
+    SemanticTokenType::PARAMETER, // 5
+    SemanticTokenType::MACRO,     // 6
+    SemanticTokenType::NAMESPACE, // 7
+    SemanticTokenType::KEYWORD,   // 8
+    SemanticTokenType::KEYWORD,   // 9
 ];
 
 impl Parser {
     pub fn open(uri: Url) -> Result<Self, Box<dyn Error>> {
-        let lexer = Lexer::open(uri.to_file_path().or(MadxLsError::new("couldn't parse uri"))?)?;
+        let lexer = Lexer::open(
+            uri.to_file_path()
+                .or(MadxLsError::new("couldn't parse uri"))?,
+        )?;
         Ok(Self::from_lexer(Some(uri), lexer))
     }
 
@@ -60,7 +72,6 @@ impl Parser {
 
     pub fn from_lexer(uri: Option<Url>, lexer: Lexer) -> Self {
         lexer.get_tokens();
-
 
         let mut parser = Self {
             uri,
@@ -87,7 +98,10 @@ impl Parser {
     /// reloads the parser from a given text (as bytes)
     pub fn reload(&mut self, bytes: &[u8]) {
         log::debug!("reloading lexer");
-        log::debug!("text {}", std::str::from_utf8(bytes).unwrap_or(UTF8_PARSER_MSG));
+        log::debug!(
+            "text {}",
+            std::str::from_utf8(bytes).unwrap_or(UTF8_PARSER_MSG)
+        );
         self.lexer = Lexer::from_bytes(bytes.to_vec());
         self.position = 0;
         //log::debug!("lexer: {:#?}", self.lexer);
@@ -108,14 +122,20 @@ impl Parser {
                 } else {
                     None
                 }
-            },_ => None
+            }
+            _ => None,
         });
 
         log::debug!("call commands: {}", call_cmds.clone().count());
 
-        self.includes = call_cmds        .filter_map(|g| g.args.first()?.value.as_ref())
-            .filter_map(|arg| get_path_relative_to_parent(self.uri.as_ref(), self.get_element_bytes(&**arg)[1..].to_vec())
-            )
+        self.includes = call_cmds
+            .filter_map(|g| g.args.first()?.value.as_ref())
+            .filter_map(|arg| {
+                get_path_relative_to_parent(
+                    self.uri.as_ref(),
+                    self.get_element_bytes(&**arg)[1..].to_vec(),
+                )
+            })
             .filter_map(|filename| {
                 if let Some(fname) = filename.extension() {
                     log::debug!("filename include: {}", filename.display());
@@ -127,8 +147,7 @@ impl Parser {
                 }
                 None
             })
-        .filter_map(|filename| 
-             Url::from_file_path(filename).ok())
+            .filter_map(|filename| Url::from_file_path(filename).ok())
             .collect::<Vec<_>>();
     }
 
@@ -136,21 +155,30 @@ impl Parser {
         while let Some(expr) = Assignment::parse(self) {
             match &expr {
                 Expression::Label(label) => {
-                self.labels.insert(
-                    self.get_element_bytes(&label.name).to_ascii_lowercase().to_vec(),
-                    self.elements.len());
-                },
+                    self.labels.insert(
+                        self.get_element_bytes(&label.name)
+                            .to_ascii_lowercase()
+                            .to_vec(),
+                        self.elements.len(),
+                    );
+                }
                 Expression::Assignment(assignment) => {
-                self.labels.insert(
-                    self.get_element_bytes(&*assignment.lhs).to_ascii_lowercase().to_vec(),
-                    self.elements.len());
-                },
+                    self.labels.insert(
+                        self.get_element_bytes(&*assignment.lhs)
+                            .to_ascii_lowercase()
+                            .to_vec(),
+                        self.elements.len(),
+                    );
+                }
                 Expression::Macro(m) => {
                     self.labels.insert(
-                        self.get_element_bytes(&m.name).to_ascii_lowercase().to_vec(),
-                        self.elements.len());
-                },
-                _ => { }
+                        self.get_element_bytes(&m.name)
+                            .to_ascii_lowercase()
+                            .to_vec(),
+                        self.elements.len(),
+                    );
+                }
+                _ => {}
             }
             expr.get_problems(&mut self.problems);
             self.elements.push(expr);
@@ -211,31 +239,64 @@ impl Parser {
         }
         None
     }
-
 }
 
 impl Display for Parser {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for expr in &self.elements {
             match expr {
-                Expression::String(_) => writeln!(f, "String({})", String::from_utf8_lossy(self.get_element_bytes(expr)))?,
-                Expression::Macro(m) => writeln!(f, "Macro({})", String::from_utf8_lossy(self.get_element_bytes(m)))?,
-                Expression::Comment(_) => writeln!(f, "Comment({})", String::from_utf8_lossy(self.get_element_bytes(expr)))?,
+                Expression::String(_) => writeln!(
+                    f,
+                    "String({})",
+                    String::from_utf8_lossy(self.get_element_bytes(expr))
+                )?,
+                Expression::Macro(m) => writeln!(
+                    f,
+                    "Macro({})",
+                    String::from_utf8_lossy(self.get_element_bytes(m))
+                )?,
+                Expression::Comment(_) => writeln!(
+                    f,
+                    "Comment({})",
+                    String::from_utf8_lossy(self.get_element_bytes(expr))
+                )?,
                 Expression::Symbol(_) => todo!(),
-                Expression::Label(l) => writeln!(f, "Label({})", String::from_utf8_lossy(self.get_element_bytes(l)))?,
-                Expression::Assignment(a) => writeln!(f, "Assignment({})", String::from_utf8_lossy(self.get_element_bytes(a)))?,
+                Expression::Label(l) => writeln!(
+                    f,
+                    "Label({})",
+                    String::from_utf8_lossy(self.get_element_bytes(l))
+                )?,
+                Expression::Assignment(a) => writeln!(
+                    f,
+                    "Assignment({})",
+                    String::from_utf8_lossy(self.get_element_bytes(a))
+                )?,
                 Expression::MadGeneric(generic) => {
-                    write!(f, "MadGeneric(({})", self.lexer.format_range_ref(&generic.name.get_range()))?;
+                    write!(
+                        f,
+                        "MadGeneric(({})",
+                        self.lexer.format_range_ref(&generic.name.get_range())
+                    )?;
                     for param in generic.args.iter() {
                         write!(f, " {}", self.lexer.format_range_ref(&param.get_range()))?;
                     }
                     writeln!(f, ")")?;
-                },
-                Expression::MadEnvironment(env) => writeln!(f, "Environment({})", String::from_utf8_lossy(self.get_element_bytes(env)))?,
+                }
+                Expression::MadEnvironment(env) => writeln!(
+                    f,
+                    "Environment({})",
+                    String::from_utf8_lossy(self.get_element_bytes(env))
+                )?,
                 Expression::Operator(_) => todo!(),
-                Expression::TokenExp(_) => writeln!(f, "Token({})", String::from_utf8_lossy(self.get_element_bytes(expr)))?,
+                Expression::TokenExp(_) => writeln!(
+                    f,
+                    "Token({})",
+                    String::from_utf8_lossy(self.get_element_bytes(expr))
+                )?,
                 Expression::Exit(_) => writeln!(f, "EXIT")?,
                 Expression::Exec(_) => writeln!(f, "exec (??)")?,
+                Expression::If(_) => writeln!(f, "if(...) {{ }}")?,
+                Expression::Noop(_) => writeln!(f, "NOOP")?,
             }
         }
         Ok(())
@@ -250,7 +311,7 @@ impl Display for Parser {
 /// This might, of course, lead to false positives which could be problematic for the workflow.
 ///
 /// # Params:
-/// * `uri` - the Url of the parent document (.madx script) 
+/// * `uri` - the Url of the parent document (.madx script)
 /// * `bytes` - the bytes from `Parser::get_element_bytes()` from the `"call"` `MadGeneric`
 fn get_path_relative_to_parent(uri: Option<&Url>, bytes: Vec<u8>) -> Option<PathBuf> {
     let call_path = String::from_utf8(bytes).ok()?;
@@ -259,14 +320,12 @@ fn get_path_relative_to_parent(uri: Option<&Url>, bytes: Vec<u8>) -> Option<Path
         let p = root.join(call_path).canonicalize();
         println!("{:?}", p);
         p.ok()
-    }
-    else {
+    } else {
         let pb: PathBuf = call_path.into();
         println!("no base uri: {}", pb.display());
         pb.canonicalize().ok()
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -279,11 +338,9 @@ mod tests {
         let string = &parser.get_elements()[0];
         if let Expression::String(_) = string {
             assert!(true);
-        }
-        else {
+        } else {
             assert!(false);
         }
-
     }
 
     #[test]
@@ -293,8 +350,7 @@ mod tests {
         if let Expression::MadGeneric(mad_generic) = string {
             //assert!(false, "{:#?}", mad_generic);
             assert!(mad_generic.match_name == b"option");
-        }
-        else {
+        } else {
             assert!(false, "expression: {:#?}\nparser:{:}", string, parser);
         }
     }
@@ -315,8 +371,6 @@ mod tests {
         for e in p.get_elements() {
             e.to_semantic_token(&mut semantic_tokens, &mut pline, &mut pstart, p);
         }
-
-
     }
 
     #[test]
@@ -332,8 +386,6 @@ mod tests {
         for e in p.get_elements() {
             e.to_semantic_token(&mut semantic_tokens, &mut pline, &mut pstart, p);
         }
-
-
     }
 
     #[test]
@@ -343,4 +395,3 @@ mod tests {
         assert!(parser.get_elements().is_empty());
     }
 }
-

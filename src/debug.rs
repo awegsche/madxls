@@ -1,21 +1,16 @@
-use std::{path::{Path, PathBuf}, time::Instant};
+use std::time::Instant;
 
-use tower_lsp::lsp_types::Url;
-
-use crate::{lexer::*, parser::{Expression, Parser}};
+use crate::parser::Parser;
 
 pub fn print_ast(file: String) {
-    //let mut lexer = Lexer::from_bytes(include_bytes!("../test.madx").to_vec());
 
     let start = Instant::now();
     println!("opening parser");
-    //let mut parser = Parser::from_str("token1 \"this is a string\"");
     let parser = Parser::from_path(&file).unwrap();
 
     let opening_time= Instant::now() - start;
 
     println!("took {}ms", opening_time.as_millis());
-    //println!("{}", parser);
 
     let mut semantic_tokens = Vec::new();
     let mut pre_line = 0;
@@ -32,14 +27,5 @@ pub fn print_ast(file: String) {
     println!("{:#?}", parser.lexer.get_tokens());
 
     println!("{:#?}", semantic_tokens);
-
-}
-
-pub fn debug_parser() {
-    //let mut parser = Parser::from_str("! hello\ncall, file;");
-    static PATH: &str = "/home/awegsche/fellow/40_magnet_sorting/job.madx";
-    let parser = Parser::from_bytes(include_bytes!( "/home/awegsche/fellow/40_magnet_sorting/job.madx").to_vec(), Url::from_file_path(PATH).ok());
-
-    println!("{}", parser);
 
 }

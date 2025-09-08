@@ -270,6 +270,13 @@ impl Macro {
         arg_tokens
 
     }
+
+    pub(crate) fn accept<V: crate::visitor::Visitor>(&self, visitor: &mut V) {
+        visitor.visit_macro(self);
+        for e in self.body.iter() {
+            e.accept(visitor);
+        }
+    }
 }
 
 impl HasRange for Macro {

@@ -52,7 +52,7 @@ impl MadExec {
         &'a self,
         pos: &CursorPosition,
         parser: &'a super::Parser,
-    ) -> Option<&[u8]> {
+    ) -> Option<&'a [u8]> {
         let range = self.callee.get_range();
         if &range.0 < pos && pos < &range.1 {
             Some(parser.get_element_bytes(&range))
@@ -64,10 +64,14 @@ impl MadExec {
     pub fn get_callee(&self) -> (CursorPosition, CursorPosition) {
         self.callee.get_range()
     }
+
+    pub(crate) fn accept<V: crate::visitor::Visitor>(&self, visitor: &mut V) {
+        visitor.visit_exec(self);
+    }
 }
 
 impl HasRange for MadExec {
     fn get_range(&self) -> (crate::lexer::CursorPosition, crate::lexer::CursorPosition) {
-        (self.name.get_range().0, self.parenclose)
+        (self.name.get_range().0, self.parenclose + 1)
     }
 }

@@ -87,10 +87,14 @@ impl Expression {
 
     pub fn accept<V: crate::visitor::Visitor>(&self, visitor: &mut V) {
         match self {
+            Expression::Macro(m) => m.accept(visitor),
+            Expression::Assignment(a) => a.accept(visitor),
+            Expression::MadGeneric(g) => g.accept(visitor),
+            Expression::MadEnvironment(e) => e.accept(visitor),
+            Expression::Exec(e) => e.accept(visitor),
+            Expression::If(i) => i.accept(visitor),
             Expression::Label(l) => l.accept(visitor),
-            _ => {
-                todo!("implement accept for {:?}", self)
-            }
+            _ => {},
         }
     }
 

@@ -31,41 +31,30 @@ impl<'a> UndefinedExecCall<'a> {
     }
 }
 
-use crate::parser::Expression;
 impl<'a> Visitor for UndefinedExecCall<'a> {
-    fn visit(&mut self, expression: &crate::parser::Expression) {
-        match expression {
-            Expression::Exec(exec) => {
-                let callee = exec.get_callee();
-                let callee_str = self.parser.get_element_bytes(&callee);
-                println!("Checking callee: {}", String::from_utf8_lossy(callee_str));
-                self.check(callee_str, exec.get_range().0, exec.get_range().1);
-            }
-            Expression::Label(label) => {
-                let label_str = self.parser.get_element_bytes(&label.name.get_range());
-                if !self.labels.iter().any(|l| l == label_str) {
-                    self.labels.push(label_str.to_vec());
-                }
-            }
-            Expression::Macro(macro_exp) => {
-                self.labels
-                    .push(self.parser.get_element_bytes(&macro_exp.name).to_vec());
-
-                for e in &macro_exp.body {
-                    self.visit(e);
-                }
-            }
-            Expression::MadEnvironment(env) => {
-                for e in env.expressions.iter() {
-                    self.visit(e);
-                }
-            }
-            _ => {
-                println!(
-                    "Ignoring expression: {}",
-                    self.parser.get_element_str(expression)
-                );
-            }
+    fn visit_macro(&mut self, expression: &crate::parser::Macro) {
+        self.labels.push(self.parser.get_element_bytes(&expression.name).to_vec());
+    }
+    fn visit_exec(&mut self, exec_exp: &crate::parser::MadExec) {
+        let callee = exec_exp.get_callee();
+        let callee_str = self.parser.get_element_bytes(&callee);
+        println!("Checking callee: {}", String::from_utf8_lossy(callee_str));
+        println!("against: {:?}", self.labels);
+        self.check(callee_str, exec_exp.get_range().0, exec_exp.get_range().1);
+    }
+    fn visit_label(&mut self, label: &crate::parser::Label) {
+        println!("Checking label: {}", self.parser.get_element_str(&label.name));
+        let label_str = self.parser.get_element_bytes(&label.name.get_range());
+        if !self.labels.iter().any(|l| l == label_str) {
+            self.labels.push(label_str.to_vec());
         }
+    }
+
+    fn visit_if(&mut self, if_exp: &crate::parser::If) {
+        
+    }
+
+    fn visit_generic(&mut self, generic: &crate::parser::MadGeneric) {
+        
     }
 }

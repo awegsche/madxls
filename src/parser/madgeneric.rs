@@ -184,6 +184,15 @@ impl MadGeneric {
             }
         }
     }
+
+    pub(crate) fn accept<V: crate::visitor::Visitor>(&self, visitor: &mut V) {
+        visitor.visit_generic(self);
+        for arg in self.args.iter() {
+            if let Some(value) = arg.value.as_ref() {
+                value.accept(visitor);
+            }
+        }
+    }
 }
 
 impl HasRange for MadGeneric {

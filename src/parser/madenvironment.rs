@@ -331,6 +331,12 @@ impl Environment {
             e.get_problems(problems);
         }
     }
+
+    pub(crate) fn accept<V: crate::visitor::Visitor>(&self, visitor: &mut V) {
+        for e in self.expressions.iter() {
+            e.accept(visitor);
+        }
+    }
 }
 
 impl HasRange for Environment {

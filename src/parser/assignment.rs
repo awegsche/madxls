@@ -49,6 +49,13 @@ impl Assignment {
             e.get_problems(problems);
         }
     }
+
+    pub(crate) fn accept<V: crate::visitor::Visitor>(&self, visitor: &mut V) {
+        self.lhs.accept(visitor);
+        if let Some(rhs) = &self.rhs {
+            rhs.accept(visitor);
+        }
+    }
 }
 
 impl HasRange for Assignment{

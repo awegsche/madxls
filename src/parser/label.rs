@@ -33,7 +33,9 @@ impl Label {
         None
     }
 
-    pub(crate) fn accept<V: crate::visitor::Visitor>(&self, visitor: &mut V) {}
+    pub(crate) fn accept<V: crate::visitor::Visitor>(&self, visitor: &mut V) {
+        visitor.visit_label(self);
+    }
 }
 
 impl HasRange for Label {

@@ -54,7 +54,7 @@ fn main() {
         let mut visitor = madxls::visitor::PrintVisitor::new(&parser);
 
         for e in parser.get_elements() {
-            visitor.visit(e);
+            e.accept(&mut visitor);
         }
         println!("Visitor Output:\n{}", visitor.buffer);
 
@@ -66,9 +66,10 @@ fn main() {
 
         for e in parser.get_elements() {
             println!("Visiting: {}", parser.get_element_str(e));
-            missing_callee.visit(e);
+            e.accept(&mut missing_callee);
         }
 
+        println!("Found {} problems", missing_callee.get_problems().len());
         for p in missing_callee.get_problems().iter() {
             println!(
                 "Undefined exec call: {}",

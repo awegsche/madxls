@@ -3,8 +3,11 @@ condition = 1;
 if(condition == 1) {
     value, condition;
 
+    exec, exec_in_if1();
+
     if (condition == 1) {
         value, condition;
+        exec, exec_in_if2();
     }
 }
 

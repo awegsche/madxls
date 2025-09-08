@@ -1,9 +1,13 @@
 use std::fmt::Write;
 
-use crate::{lexer::Token, parser::Expression};
+use crate::{lexer::Token, parser::{Label, Macro, MadExec}};
 
 pub trait Visitor {
-    fn visit(&mut self, expression: &Expression);
+    fn visit_macro(&mut self, macro_exp: &Macro);
+    fn visit_exec(&mut self, exec_exp: &MadExec);
+    fn visit_label(&mut self, label: &Label);
+    fn visit_if(&mut self, if_exp: &crate::parser::If);
+    fn visit_generic(&mut self, generic: &crate::parser::MadGeneric);
 }
 
 pub struct PrintVisitor<'a> {
@@ -32,42 +36,22 @@ fn print_token_exp(t: &Token, visitor: &mut PrintVisitor) {
 }
 
 impl<'a> Visitor for PrintVisitor<'a> {
-    fn visit(&mut self, expression: &Expression) {
-        write!(self.buffer, "{:indent$}", "", indent = self.indent).unwrap();
-        match expression {
-            Expression::Label(l) => write!(
-                self.buffer,
-                "Visiting Label: {}",
-                self.parser.get_element_str(l)
-            )
-            .unwrap(),
-            Expression::Assignment(a) => write!(
-                self.buffer,
-                "Visiting Assignment: {}",
-                self.parser.get_element_str(a)
-            )
-            .unwrap(),
-            Expression::Macro(m) => {
-                writeln!(
-                    self.buffer,
-                    "Visiting Macro: {}",
-                    self.parser.get_element_str(&m.name)
-                )
-                .unwrap();
-                self.indent += 2;
-                for e in &m.body {
-                    self.visit(e);
-                }
-                self.indent -= 2;
-            }
-            Expression::TokenExp(t) => print_token_exp(t, self),
-            _ => write!(
-                self.buffer,
-                "Visiting Expression: {:?} {}",
-                expression,
-                self.parser.get_element_str(expression)
-            )
-            .unwrap(),
-        }
+    fn visit_macro(&mut self, macro_exp: &Macro) {
+        writeln!(self.buffer, "macro {} = {{", self.parser.get_element_str(&macro_exp.name)).unwrap();
+    }
+
+    fn visit_exec(&mut self, exec_exp: &MadExec) {
+        writeln!(self.buffer, "exec {}", self.parser.get_element_str(&exec_exp.get_callee())).unwrap();
+    }
+
+    fn visit_label(&mut self, label: &Label) {
+        writeln!(self.buffer, "label {}", self.parser.get_element_str(label)).unwrap();
+    }
+
+    fn visit_if(&mut self, if_exp: &crate::parser::If) {
+        writeln!(self.buffer, "if").unwrap();
+    }
+    fn visit_generic(&mut self, generic: &crate::parser::MadGeneric) {
+        print_token_exp(&generic.name, self);
     }
 }

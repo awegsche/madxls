@@ -68,6 +68,17 @@ impl If {
 
         Some(if_object)
     }
+
+    pub(crate) fn accept<V: crate::visitor::Visitor>(&self, visitor: &mut V) {
+        visitor.visit_if(self);
+
+        for expr in self.condition.iter() {
+            expr.accept(visitor);
+        }
+        for expr in self.body.iter() {
+            expr.accept(visitor);
+        }
+    }
 }
 
 impl HasRange for If {

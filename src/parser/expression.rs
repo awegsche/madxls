@@ -85,6 +85,15 @@ impl Expression {
         None
     }
 
+    pub fn accept<V: crate::visitor::Visitor>(&self, visitor: &mut V) {
+        match self {
+            Expression::Label(l) => l.accept(visitor),
+            _ => {
+                todo!("implement accept for {:?}", self)
+            }
+        }
+    }
+
     pub fn get_problems(&self, problems: &mut Vec<Problem>) {
         match self {
             Expression::Label(_) => {}

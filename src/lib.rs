@@ -1,7 +1,9 @@
+pub mod document;
+pub mod error;
 pub mod lexer;
 pub mod parser;
-pub mod document;
+pub mod rules;
 pub mod semantic_tokens;
-pub mod error;
+pub mod visitor;
 
 pub mod debug;

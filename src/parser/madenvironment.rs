@@ -3,109 +3,238 @@ use std::collections::HashMap;
 use once_cell::sync::Lazy;
 use tower_lsp::lsp_types::{CompletionItem, CompletionItemKind};
 
-use crate::{lexer::{Token, HasRange, CursorPosition}, semantic_tokens::{get_range_token}, error::UTF8_PARSER_MSG};
+use crate::{
+    error::UTF8_PARSER_MSG,
+    lexer::{CursorPosition, HasRange, Token},
+    semantic_tokens::get_range_token,
+};
 
-use super::{Expression, MadGenericBuilder, Parser, insert_generic_builder, MadParam, MatchParam, Problem};
+use super::{
+    insert_generic_builder, Expression, MadGenericBuilder, MadParam, MatchParam, Parser, Problem,
+};
 
 pub const GENERIC_ENVS: Lazy<HashMap<&'static [u8], EnvironmentBuilder>> = Lazy::new(|| {
     let mut envs = HashMap::new();
 
     insert_generic_env(
-        &mut envs, b"seqedit", b"endedit",
+        &mut envs,
+        b"seqedit",
+        b"endedit",
         &[
-        ("flatten", &[]),
-        ("cycle", &["start"]),
-        ("install", &["element", "class", "at", "from", "selected"])
+            ("flatten", &[]),
+            ("cycle", &["start"]),
+            ("install", &["element", "class", "at", "from", "selected"]),
         ],
-        &["sequence"]
-        );
+        &["sequence"],
+    );
 
     insert_generic_env(
-        &mut envs, b"match", b"endmatch",
+        &mut envs,
+        b"match",
+        b"endmatch",
         &[
-        ("vary", &["name", "step", "lower", "upper", "slope", "opt"]),
-        ("constraint", &["sequence", "range",
-         "betx", "alfx", "mux", "bety", "alfy", "muy", "x", "px", "y", "py", "dx", "dy", "dpx", "dpy"
-        ]),
-         ("global", &["sequence", "q1", "q2", "dq1", "dq2"]),
-         ("weight", &["betx", "alfx", "mux", "bety", "alfy", "muy", "x", "px", "y", "py", "dx", "dy", "dpx", "dpy"]),
-         ("lmdif", &["calls", "tolerance"]),
-         ("migrad", &["calls", "tolerance", "strategy"]),
-         ("simplex", &["calls", "tolerance"]),
-         ("jacobian", &["calls", "tolerance", "repeat", "strategy", "cool", "balance", "random"]),
+            ("vary", &["name", "step", "lower", "upper", "slope", "opt"]),
+            (
+                "constraint",
+                &[
+                    "sequence", "range", "betx", "alfx", "mux", "bety", "alfy", "muy", "x", "px",
+                    "y", "py", "dx", "dy", "dpx", "dpy",
+                ],
+            ),
+            ("global", &["sequence", "q1", "q2", "dq1", "dq2"]),
+            (
+                "weight",
+                &[
+                    "betx", "alfx", "mux", "bety", "alfy", "muy", "x", "px", "y", "py", "dx", "dy",
+                    "dpx", "dpy",
+                ],
+            ),
+            ("lmdif", &["calls", "tolerance"]),
+            ("migrad", &["calls", "tolerance", "strategy"]),
+            ("simplex", &["calls", "tolerance"]),
+            (
+                "jacobian",
+                &[
+                    "calls",
+                    "tolerance",
+                    "repeat",
+                    "strategy",
+                    "cool",
+                    "balance",
+                    "random",
+                ],
+            ),
         ],
-         &["sequence", "betx", "alfx", "mux", "bety", "alfy", "muy", "x", "px", "y", "py", "dx", "dy", "dpx", "dpy",
-         "deltap", "slow"]
-         );
+        &[
+            "sequence", "betx", "alfx", "mux", "bety", "alfy", "muy", "x", "px", "y", "py", "dx",
+            "dy", "dpx", "dpy", "deltap", "slow",
+        ],
+    );
 
     insert_generic_env(
-        &mut envs, b"track", b"endtrack",
+        &mut envs,
+        b"track",
+        b"endtrack",
         &[
-        ("start", &[
-         "x", "px", "y", "py", "t", "pt",
-         "fx", "phix", "fy", "phiy", "ft", "phit",
-        ]),
-        ("observe", &["place"]),
-        ("run", &["turns", "maxaper", "ffile", "keeptrack"]),
-        ("dynap", &["turns", "fastune", "lyapunov", "maxaper", "orbit"]),
+            (
+                "start",
+                &[
+                    "x", "px", "y", "py", "t", "pt", "fx", "phix", "fy", "phiy", "ft", "phit",
+                ],
+            ),
+            ("observe", &["place"]),
+            ("run", &["turns", "maxaper", "ffile", "keeptrack"]),
+            (
+                "dynap",
+                &["turns", "fastune", "lyapunov", "maxaper", "orbit"],
+            ),
         ],
         &[
-        "deltap", "onepass", "damp", "quantum", "seed", "update", "onetable", "recloss", "file",
-        "aperture", "dump"
-        ]);
+            "deltap", "onepass", "damp", "quantum", "seed", "update", "onetable", "recloss",
+            "file", "aperture", "dump",
+        ],
+    );
 
     insert_generic_env(
-        &mut envs, b"ptc_create_universe", b"ptc_end",
+        &mut envs,
+        b"ptc_create_universe",
+        b"ptc_end",
         &[
-        ("ptc_create_layout", &[
-         "time", "model", "method", "nst", "exact", "offset_deltap", "errors_out",
-         "magnet_name", "resplit", "thin", "xbend", "even"
-        ]),
-        ("ptc_move_to_layout", &["index"]),
-        ("ptc_read_errors", &["overwrite"]),
-        ("ptc_align", &[]),
-        ("ptc_start", &[
-         "x", "y", "px", "py", "t", "pt", "fx", "phix", "phiy", "ft", "fy", "phit"
-        ]),
-        ("ptc_observe", &["place"]),
-        ("ptc_track", &[
-         "icase", "deltap", "closed_orbit", "element_by_element", "turns", "dump", "onetable",
-         "maxaper", "norm", "norm_out", "file", "extension", "ffile", "radiation", "radiation_model1",
-         "radiation_energy_loss", "radiation_quadr", "beam_envelope", "space_charge"
-        ]),
-        ("ptc_track_line", &["turns", "onetable", "file", "extension", "rootntuple", "everystep", 
-         "tableallsteps", "gcs"]),
-        ("ptc_track_end", &[]),
-        ("ptc_twiss", &["icase", "deltap", "closed_orbit", "deltap_dependency", "slice_magnets",
-         "range", "file", "table", "initial_matrix_table", "initial_matrix_manual", "initial_map_manual",
-         "beta0", "maptable", "ignore_map_orbit", "ring_parameters", "betx", "bety", "alfx", "alfy", "mux", "muy",
-         "dx", "dy", "dpx", "dpy", "x", "y", "px", "py", "t", "pt", 
-         // todo: see what can be done about re11 .. re66
-          ]),
+            (
+                "ptc_create_layout",
+                &[
+                    "time",
+                    "model",
+                    "method",
+                    "nst",
+                    "exact",
+                    "offset_deltap",
+                    "errors_out",
+                    "magnet_name",
+                    "resplit",
+                    "thin",
+                    "xbend",
+                    "even",
+                ],
+            ),
+            ("ptc_move_to_layout", &["index"]),
+            ("ptc_read_errors", &["overwrite"]),
+            ("ptc_align", &[]),
+            (
+                "ptc_start",
+                &[
+                    "x", "y", "px", "py", "t", "pt", "fx", "phix", "phiy", "ft", "fy", "phit",
+                ],
+            ),
+            ("ptc_observe", &["place"]),
+            (
+                "ptc_track",
+                &[
+                    "icase",
+                    "deltap",
+                    "closed_orbit",
+                    "element_by_element",
+                    "turns",
+                    "dump",
+                    "onetable",
+                    "maxaper",
+                    "norm",
+                    "norm_out",
+                    "file",
+                    "extension",
+                    "ffile",
+                    "radiation",
+                    "radiation_model1",
+                    "radiation_energy_loss",
+                    "radiation_quadr",
+                    "beam_envelope",
+                    "space_charge",
+                ],
+            ),
+            (
+                "ptc_track_line",
+                &[
+                    "turns",
+                    "onetable",
+                    "file",
+                    "extension",
+                    "rootntuple",
+                    "everystep",
+                    "tableallsteps",
+                    "gcs",
+                ],
+            ),
+            ("ptc_track_end", &[]),
+            (
+                "ptc_twiss",
+                &[
+                    "icase",
+                    "deltap",
+                    "closed_orbit",
+                    "deltap_dependency",
+                    "slice_magnets",
+                    "range",
+                    "file",
+                    "table",
+                    "initial_matrix_table",
+                    "initial_matrix_manual",
+                    "initial_map_manual",
+                    "beta0",
+                    "maptable",
+                    "ignore_map_orbit",
+                    "ring_parameters",
+                    "betx",
+                    "bety",
+                    "alfx",
+                    "alfy",
+                    "mux",
+                    "muy",
+                    "dx",
+                    "dy",
+                    "dpx",
+                    "dpy",
+                    "x",
+                    "y",
+                    "px",
+                    "py",
+                    "t",
+                    "pt",
+                    // todo: see what can be done about re11 .. re66
+                ],
+            ),
         ],
-        &[
-        "sector_nmul_max", "sector_nmul", "ntpsa", "symprint"
-        ]);
+        &["sector_nmul_max", "sector_nmul", "ntpsa", "symprint"],
+    );
     envs
 });
 
 /// this should be a macro
-pub fn insert_generic_env(map: &mut HashMap<&'static [u8], EnvironmentBuilder>,
-                          match_start: &'static [u8],
-                          match_end: &'static [u8],
-                          generic_builders: &[(&'static str, &[&str])],
-                          match_params: &[&str]) {
-
+pub fn insert_generic_env(
+    map: &mut HashMap<&'static [u8], EnvironmentBuilder>,
+    match_start: &'static [u8],
+    match_end: &'static [u8],
+    generic_builders: &[(&'static str, &[&str])],
+    match_params: &[&str],
+) {
     let mut genericmap = HashMap::new();
 
     for words in generic_builders {
         insert_generic_builder(&mut genericmap, words.0.as_bytes(), words.1);
     }
-    let match_params = match_params.into_iter().map(|x| x.as_bytes().to_vec()).collect::<Vec<_>>();
+    let match_params = match_params
+        .into_iter()
+        .map(|x| x.as_bytes().to_vec())
+        .collect::<Vec<_>>();
 
-    map.insert(match_start, EnvironmentBuilder::new(match_start, match_end, genericmap,
-                                                    match_params.into_iter().map(|p| (p, vec![])).collect()
-                                                    ));
+    map.insert(
+        match_start,
+        EnvironmentBuilder::new(
+            match_start,
+            match_end,
+            genericmap,
+            match_params.into_iter().map(|p| (p, vec![])).collect(),
+        ),
+    );
 }
 
 #[derive(Debug, PartialEq, Default)]
@@ -114,13 +243,13 @@ pub struct Environment {
     args: Vec<MadParam>,
     start: Token,
     end: Token,
-    expressions: Vec<Expression>,
+    pub expressions: Vec<Expression>,
 }
 
 pub struct EnvironmentBuilder {
     match_start: &'static [u8],
     match_end: &'static [u8],
-    generic_builders: HashMap<&'static [u8], MadGenericBuilder>,    
+    generic_builders: HashMap<&'static [u8], MadGenericBuilder>,
     match_params: Vec<MatchParam>,
 }
 
@@ -138,31 +267,54 @@ impl Environment {
         if &self.start.get_range().0 < pos && &self.end.get_range().1 > pos {
             for expr in self.expressions.iter() {
                 expr.get_completion(pos, items);
-            }     
+            }
             if let Some(builder) = &GENERIC_ENVS.get(self.match_start) {
                 for name in builder.generic_builders.keys() {
-                    items.push(CompletionItem{
-                        label: String::from_utf8(name.to_vec()).unwrap_or_else(|_| {UTF8_PARSER_MSG.to_string()}),
+                    items.push(CompletionItem {
+                        label: String::from_utf8(name.to_vec())
+                            .unwrap_or_else(|_| UTF8_PARSER_MSG.to_string()),
                         kind: Some(CompletionItemKind::FUNCTION),
-                        ..Default::default()});
+                        ..Default::default()
+                    });
                 }
             }
         }
-
     }
 
-    pub fn to_semantic_token(&self, semantic_tokens: &mut Vec<tower_lsp::lsp_types::SemanticToken>, pre_line: &mut u32, pre_start: &mut u32, parser: &Parser) {
-        semantic_tokens.push(get_range_token(&self.start.get_range(), 7, pre_line, pre_start, parser));
+    pub fn to_semantic_token(
+        &self,
+        semantic_tokens: &mut Vec<tower_lsp::lsp_types::SemanticToken>,
+        pre_line: &mut u32,
+        pre_start: &mut u32,
+        parser: &Parser,
+    ) {
+        semantic_tokens.push(get_range_token(
+            &self.start.get_range(),
+            7,
+            pre_line,
+            pre_start,
+            parser,
+        ));
 
         MadParam::to_semantic_token(&self.args, semantic_tokens, pre_line, pre_start, parser);
         for expr in self.expressions.iter() {
             expr.to_semantic_token(semantic_tokens, pre_line, pre_start, parser);
         }
 
-        semantic_tokens.push(get_range_token(&self.end.get_range(), 7, pre_line, pre_start, parser));
+        semantic_tokens.push(get_range_token(
+            &self.end.get_range(),
+            7,
+            pre_line,
+            pre_start,
+            parser,
+        ));
     }
 
-    pub(crate) fn get_label<'a>(&'a self, pos: &CursorPosition, parser: &'a Parser) -> Option<&[u8]> {
+    pub(crate) fn get_label<'a>(
+        &'a self,
+        pos: &CursorPosition,
+        parser: &'a Parser,
+    ) -> Option<&[u8]> {
         let range = self.start.get_range();
         if &range.0 < pos && pos < &range.1 {
             return Some(parser.get_element_bytes(&range));
@@ -171,7 +323,10 @@ impl Environment {
     }
 
     pub(crate) fn get_problems(&self, problems: &mut Vec<Problem>) {
-        log::debug!("forwarding problems for {} expressions", self.expressions.len());
+        log::debug!(
+            "forwarding problems for {} expressions",
+            self.expressions.len()
+        );
         for e in self.expressions.iter() {
             e.get_problems(problems);
         }
@@ -184,11 +339,13 @@ impl HasRange for Environment {
     }
 }
 
-
 impl EnvironmentBuilder {
-    pub fn new(match_start: &'static [u8], match_end: &'static [u8],
-               generic_builders: HashMap<&'static [u8], MadGenericBuilder>,
-               match_params: Vec<MatchParam>) -> Self {
+    pub fn new(
+        match_start: &'static [u8],
+        match_end: &'static [u8],
+        generic_builders: HashMap<&'static [u8], MadGenericBuilder>,
+        match_params: Vec<MatchParam>,
+    ) -> Self {
         Self {
             match_start,
             match_end,
@@ -204,7 +361,7 @@ impl EnvironmentBuilder {
             if !parser.lexer.compare_range(name, self.match_start) {
                 return None;
             }
-            
+
             env.match_start = self.match_start;
             env.start = Token::Ident(*name);
             parser.advance();
@@ -227,10 +384,10 @@ impl EnvironmentBuilder {
                     }
                     env.expressions.push(expr);
                     continue;
-                } 
+                }
                 break;
             }
-            if let Some(last)=env.expressions.last() {
+            if let Some(last) = env.expressions.last() {
                 env.end = Token::Ident(last.get_range());
             }
             return Some(env);
@@ -250,13 +407,11 @@ mod tests {
         let seqedit = &parser.get_elements()[0];
 
         if let Expression::MadEnvironment(env) = seqedit {
-            assert_eq!(parser.get_element_bytes(env), b"seqedit; flatten; endedit");    
+            assert_eq!(parser.get_element_bytes(env), b"seqedit; flatten; endedit");
             assert_eq!(parser.get_element_bytes(&env.start), b"seqedit");
             assert_eq!(parser.get_element_bytes(&env.expressions[1]), b"flatten");
             assert_eq!(parser.get_element_bytes(&env.end), b"endedit");
-
-        }
-        else {
+        } else {
             assert!(false, "should be an env");
         }
     }
@@ -268,7 +423,10 @@ mod tests {
         let seqedit = &parser.get_elements()[0];
 
         if let Expression::MadEnvironment(env) = seqedit {
-            assert_eq!(parser.get_element_str(env), "seqedit; flatten; twiss, sequence=lhcb1;");    
+            assert_eq!(
+                parser.get_element_str(env),
+                "seqedit; flatten; twiss, sequence=lhcb1;"
+            );
             assert_eq!(parser.get_element_str(&env.start), "seqedit");
             assert_eq!(parser.get_element_str(&env.expressions[1]), "flatten");
             assert_eq!(parser.get_element_str(&env.end), ";");
@@ -279,8 +437,7 @@ mod tests {
             env.to_semantic_token(&mut st, &mut pre_line, &mut pre_start, &parser);
 
             //assert!(false, "{:#?}\n{:#?}", env.expressions, st);
-        }
-        else {
+        } else {
             assert!(false, "should be an env");
         }
     }

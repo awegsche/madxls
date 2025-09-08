@@ -180,7 +180,7 @@ impl Parser {
                 }
                 _ => {}
             }
-            expr.get_problems(&mut self.problems);
+            //expr.get_problems(&mut self.problems);
             self.elements.push(expr);
         }
     }

@@ -1,28 +1,29 @@
 use std::sync::Arc;
 
+use clap::Parser;
+use dashmap::DashMap;
 use log::LevelFilter;
-use log4rs::Config;
+use log4rs::append::file::FileAppender;
 use log4rs::config::Appender;
 use log4rs::config::Root;
 use log4rs::encode::pattern::PatternEncoder;
-use parser::LEGEND_TYPE;
+use log4rs::Config;
 use parser::MaybeProblem;
 use parser::Problem;
+use parser::LEGEND_TYPE;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
-use dashmap::DashMap;
-use log4rs::append::file::FileAppender;
-use clap::Parser;
 
+pub mod document;
+pub mod error;
 pub mod lexer;
 pub mod parser;
-pub mod document;
+pub mod rules;
 pub mod semantic_tokens;
-pub mod error;
+pub mod visitor;
 
 pub mod debug;
-
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -30,7 +31,6 @@ struct Args {
     #[arg(long)]
     pub debug_file: Option<String>,
 }
-
 
 #[tokio::main]
 async fn main() {
@@ -46,20 +46,25 @@ async fn main() {
     //return;
     let logfile = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
-        .build("/home/awegsche/logs/logfile.log").unwrap();
+        .build("/home/awegsche/logs/logfile.log")
+        .unwrap();
 
     let config = Config::builder()
         .appender(Appender::builder().build("logfile", Box::new(logfile)))
-        .build(Root::builder().appender("logfile").build(LevelFilter::Debug)).unwrap();
+        .build(
+            Root::builder()
+                .appender("logfile")
+                .build(LevelFilter::Debug),
+        )
+        .unwrap();
 
     log4rs::init_config(config).unwrap();
     run_server().await;
 }
 
 pub enum Message {
-    DiagnosticsCompleted(Vec<Problem>)
+    DiagnosticsCompleted(Vec<Problem>),
 }
-
 
 #[derive(Debug)]
 struct Backend {
@@ -70,7 +75,7 @@ struct Backend {
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
     async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
-        Ok(InitializeResult{
+        Ok(InitializeResult {
             server_info: None,
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
@@ -81,37 +86,38 @@ impl LanguageServer for Backend {
                     trigger_characters: Some(vec![".".to_string(), ",".to_string()]),
                     ..Default::default()
                 }),
-                document_highlight_provider:
-                    Some(OneOf::Right(
-                            DocumentHighlightOptions{work_done_progress_options:
-                            WorkDoneProgressOptions{work_done_progress: Some(false)}})),
+                document_highlight_provider: Some(OneOf::Right(DocumentHighlightOptions {
+                    work_done_progress_options: WorkDoneProgressOptions {
+                        work_done_progress: Some(false),
+                    },
+                })),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 semantic_tokens_provider: Some(
-                                              SemanticTokensServerCapabilities::SemanticTokensRegistrationOptions(
-                                                  SemanticTokensRegistrationOptions {
-                                                      text_document_registration_options: {
-                                                          TextDocumentRegistrationOptions {
-                                                              document_selector: Some(vec![DocumentFilter {
-                                                                  language: Some("madx".to_string()),
-                                                                  scheme: Some("file".to_string()),
-                                                                  pattern: None,
-                                                              }]),
-                                                          }
-                                                      },
-                                                      semantic_tokens_options: SemanticTokensOptions {
-                                                          work_done_progress_options: WorkDoneProgressOptions::default(),
-                                                          legend: SemanticTokensLegend {
-                                                              token_types: LEGEND_TYPE.into(),
-                                                              token_modifiers: vec![],
-                                                          },
-                                                          range: Some(true),
-                                                          full: Some(SemanticTokensFullOptions::Bool(true)),
-                                                      },
-                                                      static_registration_options: StaticRegistrationOptions::default(),
-                                                  },
-                                                  ),
-                                                  ),
-                                                  ..ServerCapabilities::default()
+                    SemanticTokensServerCapabilities::SemanticTokensRegistrationOptions(
+                        SemanticTokensRegistrationOptions {
+                            text_document_registration_options: {
+                                TextDocumentRegistrationOptions {
+                                    document_selector: Some(vec![DocumentFilter {
+                                        language: Some("madx".to_string()),
+                                        scheme: Some("file".to_string()),
+                                        pattern: None,
+                                    }]),
+                                }
+                            },
+                            semantic_tokens_options: SemanticTokensOptions {
+                                work_done_progress_options: WorkDoneProgressOptions::default(),
+                                legend: SemanticTokensLegend {
+                                    token_types: LEGEND_TYPE.into(),
+                                    token_modifiers: vec![],
+                                },
+                                range: Some(true),
+                                full: Some(SemanticTokensFullOptions::Bool(true)),
+                            },
+                            static_registration_options: StaticRegistrationOptions::default(),
+                        },
+                    ),
+                ),
+                ..ServerCapabilities::default()
             },
             ..Default::default()
         })
@@ -125,16 +131,17 @@ impl LanguageServer for Backend {
     }
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
-
-
         log::info!("completion");
         let uri = params.text_document_position.text_document.uri;
         let mut items = Vec::new();
 
-        get_completions(&mut items, Some(params.text_document_position.position), &uri, &self.documents);
-        Ok(Some(CompletionResponse::Array(
-                    items
-                    )))
+        get_completions(
+            &mut items,
+            Some(params.text_document_position.position),
+            &uri,
+            &self.documents,
+        );
+        Ok(Some(CompletionResponse::Array(items)))
     }
 
     async fn document_highlight(
@@ -142,16 +149,18 @@ impl LanguageServer for Backend {
         params: DocumentHighlightParams,
     ) -> Result<Option<Vec<DocumentHighlight>>> {
         log::debug!("highlights triggered");
-        if let Some(doc) = self.documents.get(&params.text_document_position_params.text_document.uri) {
+        if let Some(doc) = self
+            .documents
+            .get(&params.text_document_position_params.text_document.uri)
+        {
             let hi = doc.get_document_highlights(&params.text_document_position_params.position);
             if let Ok(Some(h)) = &hi {
-            log::debug!("get some highlights: {}", h.len());
+                log::debug!("get some highlights: {}", h.len());
             }
             return hi;
         }
         Ok(None)
     }
-
 
     async fn will_save(&self, params: WillSaveTextDocumentParams) {
         self.resubmit_diagnostics(&params.text_document.uri).await;
@@ -164,7 +173,8 @@ impl LanguageServer for Backend {
             .await;
         let uri = &params.text_document.uri;
         if !self.documents.contains_key(uri) {
-            let document = document::Document::new(Some(uri.clone()), params.text_document.text.as_bytes());
+            let document =
+                document::Document::new(Some(uri.clone()), params.text_document.text.as_bytes());
 
             // check the includes
             let includes = document.parser.includes.clone();
@@ -175,14 +185,9 @@ impl LanguageServer for Backend {
                 }
             });
 
-            self.documents.insert(
-                uri.clone(),
-                document,
-            );
-
+            self.documents.insert(uri.clone(), document);
         }
     }
-
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         log::info!("did change");
@@ -201,11 +206,14 @@ impl LanguageServer for Backend {
         self.resubmit_diagnostics(&params.text_document.uri).await;
     }
 
-
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         log::info!("hover");
-        if let Some(doc) = self.documents.get(&params.text_document_position_params.text_document.uri) {
-            self.resubmit_diagnostics(&params.text_document_position_params.text_document.uri).await;
+        if let Some(doc) = self
+            .documents
+            .get(&params.text_document_position_params.text_document.uri)
+        {
+            self.resubmit_diagnostics(&params.text_document_position_params.text_document.uri)
+                .await;
             let labels = doc.get_labels_under_cursor(params.text_document_position_params.position);
             log::debug!("check hover for: {:?}", labels);
             let mut items = Vec::new();
@@ -214,15 +222,19 @@ impl LanguageServer for Backend {
             log::debug!("includes in file: {}", doc.parser.includes.len());
             log::debug!("docs loaded: {}", self.documents.len());
 
-            for (uri, incl) in doc.parser.includes.iter().filter_map(|uri| Some((uri, self.documents.get(uri)?))) {
+            for (uri, incl) in doc
+                .parser
+                .includes
+                .iter()
+                .filter_map(|uri| Some((uri, self.documents.get(uri)?)))
+            {
                 log::debug!("checking in {}", uri.path());
                 incl.get_hover(&labels, &mut items, Some(uri));
             }
             return Ok(Some(Hover {
                 contents: HoverContents::Array(items),
-                range: None
+                range: None,
             }));
-
         }
         Ok(None)
     }
@@ -238,16 +250,17 @@ impl LanguageServer for Backend {
         Ok(None)
     }
 
-
-
     async fn shutdown(&self) -> Result<()> {
         Ok(())
     }
 }
 
-fn recheck_problems(uri: &Url, documents: &Arc<DashMap<Url, document::Document>>, problems: &mut Vec<MaybeProblem>) {
-    if let Some(doc) =  documents.get(uri) {
-
+fn recheck_problems(
+    uri: &Url,
+    documents: &Arc<DashMap<Url, document::Document>>,
+    problems: &mut Vec<MaybeProblem>,
+) {
+    if let Some(doc) = documents.get(uri) {
         log::debug!("rechecking {}", uri.path());
         for incl in doc.parser.includes.iter() {
             recheck_problems(incl, documents, problems);
@@ -266,11 +279,14 @@ fn recheck_problems(uri: &Url, documents: &Arc<DashMap<Url, document::Document>>
                             break;
                         }
                     }
-                },
+                }
                 _ => {}
             }
         }
-        log::debug!("not-None: {}", problems.iter().filter(|p| p.problem.is_some()).count());
+        log::debug!(
+            "not-None: {}",
+            problems.iter().filter(|p| p.problem.is_some()).count()
+        );
     }
 }
 
@@ -286,7 +302,6 @@ fn reload_includes(uri: Url, documents: &Arc<DashMap<Url, document::Document>>) 
             documents.insert(uri.clone(), doc);
         }
     }
-
 }
 
 impl Backend {
@@ -298,19 +313,28 @@ impl Backend {
 
             for p in problems.iter_mut() {
                 match p.problem.as_mut() {
-                    Some(Problem::MissingCallee(s, r)) => *s = doc.parser.get_element_bytes(r).to_vec(),
+                    Some(Problem::MissingCallee(s, r)) => {
+                        *s = doc.parser.get_element_bytes(r).to_vec()
+                    }
                     _ => {}
                 }
             }
             recheck_problems(uri, &self.documents, &mut problems);
 
             log::debug!("publishing");
-            self.client.publish_diagnostics(uri.clone(), diagnostics_from_problems(&problems), None).await;
+            self.client
+                .publish_diagnostics(uri.clone(), diagnostics_from_problems(&problems), None)
+                .await;
         }
     }
 }
 
-fn get_completions(items: &mut Vec<CompletionItem>, pos: Option<Position>, url: &Url, documents: &Arc<DashMap<Url, document::Document>>) {
+fn get_completions(
+    items: &mut Vec<CompletionItem>,
+    pos: Option<Position>,
+    url: &Url,
+    documents: &Arc<DashMap<Url, document::Document>>,
+) {
     if let Some(doc) = documents.get(url) {
         items.extend(doc.get_completion(pos).into_iter());
 
@@ -321,34 +345,36 @@ fn get_completions(items: &mut Vec<CompletionItem>, pos: Option<Position>, url: 
 }
 
 fn diagnostics_from_problems(problems: &[MaybeProblem]) -> Vec<Diagnostic> {
-    problems.iter()
+    problems
+        .iter()
         .filter_map(|p| {
-            let Some(problem) = p.problem.as_ref() else { return None; };
+            let Some(problem) = p.problem.as_ref() else {
+                return None;
+            };
 
             let severity = match problem {
-                Problem::MissingCallee(_,_) => DiagnosticSeverity::ERROR,
+                Problem::MissingCallee(_, _) => DiagnosticSeverity::ERROR,
                 Problem::InvalidParam(_) => DiagnosticSeverity::ERROR,
                 Problem::Error(_, _, _) => DiagnosticSeverity::ERROR,
                 Problem::Warning(_, _, _) => DiagnosticSeverity::WARNING,
                 Problem::Hint(_, _, _) => DiagnosticSeverity::HINT,
             };
-            Some(Diagnostic::new(p.range,
-                                 Some(severity),
-                                 None,
-                                 None,
-                                 format!("{}", problem),
-                                 None,
-                                 None
-                                )
-                )})
+            Some(Diagnostic::new(
+                p.range,
+                Some(severity),
+                None,
+                None,
+                format!("{}", problem),
+                None,
+                None,
+            ))
+        })
         .collect()
-
 }
 
 async fn run_server() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
-
 
     let (service, socket) = LspService::new(|client| Backend {
         client,
@@ -356,4 +382,3 @@ async fn run_server() {
     });
     Server::new(stdin, stdout, socket).serve(service).await;
 }
-

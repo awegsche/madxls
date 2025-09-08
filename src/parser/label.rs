@@ -1,4 +1,4 @@
-use crate::lexer::{Token, HasRange};
+use crate::lexer::{HasRange, Token};
 
 use super::{MadGeneric, Parser};
 
@@ -32,6 +32,8 @@ impl Label {
         }
         None
     }
+
+    pub(crate) fn accept<V: crate::visitor::Visitor>(&self, visitor: &mut V) {}
 }
 
 impl HasRange for Label {
@@ -52,9 +54,11 @@ mod tests {
 
         if let Expression::Label(label) = &parser.get_elements()[0] {
             assert_eq!(parser.get_element_str(&label.name), "label");
-            assert_eq!(parser.get_element_str(&label.command), "twiss, sequence=lhcb");
+            assert_eq!(
+                parser.get_element_str(&label.command),
+                "twiss, sequence=lhcb"
+            );
             assert_eq!(parser.labels.keys().collect::<Vec<_>>(), vec![b"label"]);
         }
     }
-
 }

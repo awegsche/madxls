@@ -13,6 +13,7 @@ fn_one(p1): macro = {
 }
 
 exec, fn_one(1);
+exec, fn_one(-1);
 
 track_file(filename): macro = {
   ! Tracking routine, will output file named "trackone"

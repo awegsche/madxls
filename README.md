@@ -1,4 +1,6 @@
-# MADX-LS
+# MADX-LS 
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=awegsche1_madxls&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=awegsche1_madxls)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=awegsche1_madxls&metric=coverage)](https://sonarcloud.io/summary/new_code?id=awegsche1_madxls)
 
 A comprehensive language toolchain for the [MADX](http://mad.web.cern.ch/mad/) scripting language, providing both IDE integration and static analysis capabilities.
 

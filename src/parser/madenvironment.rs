@@ -1,17 +1,10 @@
 use std::collections::HashMap;
 
 use once_cell::sync::Lazy;
-use tower_lsp::lsp_types::{CompletionItem, CompletionItemKind};
 
-use crate::{
-    error::UTF8_PARSER_MSG,
-    lexer::{CursorPosition, HasRange, Token},
-    semantic_tokens::get_range_token,
-};
+use crate::lexer::{HasRange, Token};
 
-use super::{
-    insert_generic_builder, Expression, MadGenericBuilder, MadParam, MatchParam, Parser, Problem,
-};
+use super::{insert_generic_builder, Expression, MadGenericBuilder, MadParam, MatchParam, Parser};
 
 pub const GENERIC_ENVS: Lazy<HashMap<&'static [u8], EnvironmentBuilder>> = Lazy::new(|| {
     let mut envs = HashMap::new();
@@ -263,78 +256,13 @@ impl Environment {
         None
     }
 
-    pub fn get_completion(&self, pos: &CursorPosition, items: &mut Vec<CompletionItem>) {
-        if &self.start.get_range().0 < pos && &self.end.get_range().1 > pos {
-            for expr in self.expressions.iter() {
-                expr.get_completion(pos, items);
-            }
-            if let Some(builder) = &GENERIC_ENVS.get(self.match_start) {
-                for name in builder.generic_builders.keys() {
-                    items.push(CompletionItem {
-                        label: String::from_utf8(name.to_vec())
-                            .unwrap_or_else(|_| UTF8_PARSER_MSG.to_string()),
-                        kind: Some(CompletionItemKind::FUNCTION),
-                        ..Default::default()
-                    });
-                }
-            }
-        }
-    }
-
-    pub fn to_semantic_token(
+    pub(crate) fn accept<V: crate::visitor::Visitor>(
         &self,
-        semantic_tokens: &mut Vec<tower_lsp::lsp_types::SemanticToken>,
-        pre_line: &mut u32,
-        pre_start: &mut u32,
-        parser: &Parser,
+        visitor: &mut V,
+        parser: &crate::parser::Parser,
     ) {
-        semantic_tokens.push(get_range_token(
-            &self.start.get_range(),
-            7,
-            pre_line,
-            pre_start,
-            parser,
-        ));
-
-        MadParam::to_semantic_token(&self.args, semantic_tokens, pre_line, pre_start, parser);
-        for expr in self.expressions.iter() {
-            expr.to_semantic_token(semantic_tokens, pre_line, pre_start, parser);
-        }
-
-        semantic_tokens.push(get_range_token(
-            &self.end.get_range(),
-            7,
-            pre_line,
-            pre_start,
-            parser,
-        ));
-    }
-
-    pub(crate) fn get_label<'a>(
-        &'a self,
-        pos: &CursorPosition,
-        parser: &'a Parser,
-    ) -> Option<&[u8]> {
-        let range = self.start.get_range();
-        if &range.0 < pos && pos < &range.1 {
-            return Some(parser.get_element_bytes(&range));
-        }
-        None
-    }
-
-    pub(crate) fn get_problems(&self, problems: &mut Vec<Problem>) {
-        log::debug!(
-            "forwarding problems for {} expressions",
-            self.expressions.len()
-        );
         for e in self.expressions.iter() {
-            e.get_problems(problems);
-        }
-    }
-
-    pub(crate) fn accept<V: crate::visitor::Visitor>(&self, visitor: &mut V) {
-        for e in self.expressions.iter() {
-            e.accept(visitor);
+            e.accept(visitor, parser);
         }
     }
 }
@@ -436,13 +364,6 @@ mod tests {
             assert_eq!(parser.get_element_str(&env.start), "seqedit");
             assert_eq!(parser.get_element_str(&env.expressions[1]), "flatten");
             assert_eq!(parser.get_element_str(&env.end), ";");
-
-            let mut st = Vec::new();
-            let mut pre_line = 0;
-            let mut pre_start = 0;
-            env.to_semantic_token(&mut st, &mut pre_line, &mut pre_start, &parser);
-
-            //assert!(false, "{:#?}\n{:#?}", env.expressions, st);
         } else {
             assert!(false, "should be an env");
         }

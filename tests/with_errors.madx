@@ -1,3 +1,7 @@
+call, file=input1.madx;
+
+exec, multiply(2,3);
+
 condition = 1;
 
 if(condition == 1) {
@@ -16,7 +20,7 @@ fn_one(p1): macro = {
 }
 
 exec, fn_one(1);
-exec, fn_one(-1);
+exec, fn_two(-1);
 
 track_file(filename): macro = {
   ! Tracking routine, will output file named "trackone"
@@ -29,3 +33,4 @@ track_file(filename): macro = {
 }
 
 exec, track_file("hello");
+

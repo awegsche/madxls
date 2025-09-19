@@ -11,6 +11,11 @@ use crate::error::UTF8_PARSER_MSG;
 
 pub trait HasRange {
     fn get_range(&self) -> (CursorPosition, CursorPosition);
+
+    fn get_lines(&self) -> impl Iterator<Item = usize> {
+        let range = self.get_range();
+        range.0.line()..=range.1.line()
+    }
 }
 
 impl HasRange for (CursorPosition, CursorPosition) {
@@ -84,12 +89,21 @@ impl Lexer {
     }
 
     pub fn cursor_pos_to_text_pos(&self, pos: CursorPosition) -> Position {
-        Position::new(pos.line() as u32, pos.character(&self.lines) as u32)
+        Position::new(pos.line() as u32 + 1, pos.character(&self.lines) as u32)
+    }
+    pub fn cursor_range_to_text_range<R: HasRange>(
+        &self,
+        has_range: &R,
+    ) -> tower_lsp::lsp_types::Range {
+        let range = has_range.get_range();
+        tower_lsp::lsp_types::Range {
+            start: self.cursor_pos_to_text_pos(range.0),
+            end: self.cursor_pos_to_text_pos(range.1),
+        }
     }
 
     /// advancing the CursorPosition `cursor` by `by` characters, taking into account line breaks
     pub fn advance_cursor(&self, cursor: &mut CursorPosition, by: usize) {
-        let by_rest = by;
         *cursor += by;
         while self.lines[cursor.line()] < cursor.absolute() {
             cursor.advance_line()
@@ -114,7 +128,7 @@ impl Lexer {
         self.get_range_bytes(token)
     }
 
-    pub fn get_range_str<R: HasRange>(&self, token: &R) -> Cow<str> {
+    pub fn get_range_str<R: HasRange>(&'_ self, token: &R) -> Cow<'_, str> {
         String::from_utf8_lossy(self.get_range_bytes(token))
     }
 
@@ -229,14 +243,6 @@ impl Lexer {
     }
 
     /// ---- internal reading functions ------------------------------------------------------------
-    fn next_char(&mut self) -> Option<u8> {
-        if self.position.absolute() >= self.buffer.len() {
-            return None;
-        }
-        let c = self.buffer[self.position.absolute()];
-        self.position += 1; // position is now one character ahead
-        Some(c)
-    }
 
     fn peak_char(&self) -> Option<u8> {
         if self.position.absolute() >= self.buffer.len() {

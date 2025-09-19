@@ -5,6 +5,7 @@ use crate::{
 
 #[derive(Debug, PartialEq, Default)]
 pub struct If {
+    pub if_pos: Token,
     pub parenopen: CursorPosition,
     pub parenclose: CursorPosition,
     pub condition: Vec<Expression>, // should be only one
@@ -27,8 +28,10 @@ impl If {
     }
 
     pub fn parse_inner(parser: &mut Parser) -> Option<Self> {
+        let mut if_object = If::default();
         if let Some(Token::Ident(if_keyword)) = parser.peek_token() {
             if parser.lexer.compare_range(if_keyword, b"if") {
+                if_object.if_pos = Token::Ident(if_keyword.clone());
                 parser.advance();
             } else {
                 return None;
@@ -36,8 +39,6 @@ impl If {
         } else {
             return None;
         }
-
-        let mut if_object = If::default();
 
         if let Some(Token::ParentOpen(pos)) = parser.next_token() {
             if_object.parenopen = pos.clone();
@@ -69,15 +70,20 @@ impl If {
         Some(if_object)
     }
 
-    pub(crate) fn accept<V: crate::visitor::Visitor>(&self, visitor: &mut V) {
-        visitor.visit_if(self);
+    pub(crate) fn accept<V: crate::visitor::Visitor>(
+        &self,
+        visitor: &mut V,
+        parser: &crate::parser::Parser,
+    ) {
+        visitor.visit_if(self, parser);
 
-        for expr in self.condition.iter() {
-            expr.accept(visitor);
-        }
+        //for expr in self.condition.iter() {
+        //    expr.accept(visitor, parser);
+        //}
         for expr in self.body.iter() {
-            expr.accept(visitor);
+            expr.accept(visitor, parser);
         }
+        visitor.visit_if_end(self, parser);
     }
 }
 

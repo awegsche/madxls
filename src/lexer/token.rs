@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use super::{CursorPosition, HasRange};
 
 #[derive(Debug, PartialEq, Eq, Clone)]

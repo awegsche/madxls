@@ -1,17 +1,9 @@
-use std::{collections::HashMap, fmt::Display};
-
-use once_cell::sync::Lazy;
-use tower_lsp::lsp_types::{CompletionItem, SemanticToken};
-
 use crate::{
     lexer::{CursorPosition, HasRange, Token},
-    semantic_tokens::get_range_token,
+    parser::MadCall,
 };
 
-use super::{
-    insert_generic_builder, Assignment, Environment, If, Label, Macro, MadExec, MadGeneric,
-    MadGenericBuilder, Parser, Problem, GENERIC_BUILTINS,
-};
+use super::{Assignment, Environment, If, Label, Macro, MadExec, MadGeneric, Parser};
 #[derive(Debug, PartialEq)]
 pub enum Expression {
     Label(Label),
@@ -26,6 +18,7 @@ pub enum Expression {
     Exit(Exit),
     Operator(Operator),
     Exec(MadExec),
+    Call(MadCall),
     Noop(CursorPosition),
     TokenExp(Token), // debug, todo: remove
 }
@@ -47,6 +40,7 @@ impl HasRange for Expression {
             Expression::Exit(exit) => (exit.start, exit.end),
             Expression::Exec(exec) => exec.get_range(),
             Expression::Noop(pos) => (*pos, *pos),
+            Expression::Call(call) => call.get_range(),
         }
     }
 }
@@ -59,17 +53,23 @@ impl Expression {
         if let Some(string) = Self::parse_string(parser) {
             return Some(string);
         }
+        if let Some(comment) = Self::parse_comment(parser) {
+            return Some(comment);
+        }
         if let Some(label) = Label::parse(parser) {
             return Some(Expression::Label(label));
         }
         if let Some(env) = Environment::parse(parser) {
             return Some(Expression::MadEnvironment(env));
         }
-        if let Some(generic) = MadGeneric::parse(parser) {
-            return Some(Expression::MadGeneric(generic));
-        }
         if let Some(exec) = MadExec::parse(parser) {
             return Some(Expression::Exec(exec));
+        }
+        if let Some(call) = MadCall::parse(parser) {
+            return Some(Expression::Call(call));
+        }
+        if let Some(generic) = MadGeneric::parse(parser) {
+            return Some(Expression::MadGeneric(generic));
         }
         if let Some(if_object) = If::parse(parser) {
             return Some(Expression::If(if_object));
@@ -85,35 +85,23 @@ impl Expression {
         None
     }
 
-    pub fn accept<V: crate::visitor::Visitor>(&self, visitor: &mut V) {
+    pub fn accept<V: crate::visitor::Visitor>(
+        &self,
+        visitor: &mut V,
+        parser: &crate::parser::Parser,
+    ) {
         match self {
-            Expression::Macro(m) => m.accept(visitor),
-            Expression::Assignment(a) => a.accept(visitor),
-            Expression::MadGeneric(g) => g.accept(visitor),
-            Expression::MadEnvironment(e) => e.accept(visitor),
-            Expression::Exec(e) => e.accept(visitor),
-            Expression::If(i) => i.accept(visitor),
-            Expression::Label(l) => l.accept(visitor),
-            _ => {},
-        }
-    }
-
-    pub fn get_problems(&self, problems: &mut Vec<Problem>) {
-        match self {
-            Expression::Label(_) => {}
-            Expression::Macro(m) => m.get_problems(problems),
-            Expression::Assignment(a) => a.get_problems(problems),
-            Expression::String(_) => {}
-            Expression::Comment(_) => {}
-            Expression::Symbol(_) => {}
-            Expression::MadGeneric(g) => g.get_problems(problems),
-            Expression::MadEnvironment(e) => e.get_problems(problems),
-            Expression::Exit(_) => {}
-            Expression::Operator(_) => {}
-            Expression::Exec(e) => e.get_problems(problems),
-            Expression::TokenExp(_) => {}
-            Expression::If(_) => {}
-            Expression::Noop(cursor_position) => {}
+            Expression::Macro(m) => m.accept(visitor, parser),
+            Expression::Assignment(a) => a.accept(visitor, parser),
+            Expression::MadGeneric(g) => g.accept(visitor, parser),
+            Expression::MadEnvironment(e) => e.accept(visitor, parser),
+            Expression::Exec(e) => e.accept(visitor, parser),
+            Expression::If(i) => i.accept(visitor, parser),
+            Expression::Label(l) => l.accept(visitor, parser),
+            Expression::Call(c) => c.accept(visitor, parser),
+            Expression::Comment(c) => visitor.visit_comment(c, parser),
+            Expression::String(s) => visitor.visit_string(s, parser),
+            _ => {}
         }
     }
 
@@ -139,122 +127,32 @@ impl Expression {
         None
     }
 
-    /// returns the label of the element under cursor, this is to find the definition and,
-    /// possibly, jump to it
-    pub fn get_label<'a>(&'a self, pos: &CursorPosition, parser: &'a Parser) -> Option<&[u8]> {
-        match self {
-            Expression::Label(_) => None,
-            Expression::Macro(_) => None,
-            Expression::Assignment(a) => a.get_label(pos, parser),
-            Expression::String(_) => None,
-            Expression::Comment(_) => None,
-            Expression::Symbol(s) => Some(s.as_bytes()),
-            Expression::MadGeneric(m) => m.get_label(pos, parser),
-            Expression::MadEnvironment(m) => m.get_label(pos, parser),
-            Expression::Exit(_) => None,
-            Expression::Operator(_) => None,
-            Expression::Exec(s) => s.get_label(pos, parser),
-            Expression::TokenExp(t) => {
-                let range = t.get_range();
-                if &range.0 < pos && pos < &range.1 {
-                    Some(parser.get_element_bytes(&range))
-                } else {
-                    None
-                }
-            }
-            Expression::If(_) => None,
-            Expression::Noop(cursor_position) => None,
-        }
-    }
+    fn parse_comment(parser: &mut Parser) -> Option<Self> {
+        let mut comments = Vec::new();
 
-    pub fn get_completion(&self, pos: &CursorPosition, items: &mut Vec<CompletionItem>) {
-        match self {
-            Expression::Label(_) => {}
-            Expression::Macro(m) => m.get_completion(pos, items),
-            Expression::Assignment(_) => {}
-            Expression::String(_) => {}
-            Expression::Comment(_) => {}
-            Expression::Symbol(_) => {}
-            Expression::MadGeneric(g) => g.get_completion(pos, items),
-            Expression::MadEnvironment(e) => e.get_completion(pos, items),
-            Expression::Exit(_) => {}
-            Expression::Exec(_) => {}
-            Expression::Operator(_) => {}
-            Expression::TokenExp(_) => {}
-            Expression::If(_) => {}
-            Expression::Noop(cursor_position) => {}
-        }
-    }
-    pub fn to_semantic_token(
-        &self,
-        semantic_tokens: &mut Vec<SemanticToken>,
-        pre_line: &mut u32,
-        pre_start: &mut u32,
-        parser: &Parser,
-    ) {
-        match self {
-            Self::String(range) => {
-                semantic_tokens.push(get_range_token(range, 0, pre_line, pre_start, parser))
-            }
-            Self::TokenExp(Token::Comment(range)) => {
-                semantic_tokens.push(get_range_token(range, 2, pre_line, pre_start, parser))
-            }
-            Self::TokenExp(Token::MultilineComment(lines)) => {
-                for range in lines.iter() {
-                    semantic_tokens.push(get_range_token(range, 2, pre_line, pre_start, parser));
+        while let Some(token) = parser.peek_token().cloned() {
+            match token {
+                Token::Comment(range) => {
+                    parser.advance();
+                    comments.push(range);
                 }
-            }
-            Self::Macro(m) => m.to_semantic_token(semantic_tokens, pre_line, pre_start, parser),
-            Self::Label(label) => {
-                semantic_tokens.push(get_range_token(&label.name, 6, pre_line, pre_start, parser));
-                label
-                    .command
-                    .to_semantic_token(semantic_tokens, pre_line, pre_start, parser);
-            }
-            Self::MadGeneric(mad_generic) => {
-                mad_generic.to_semantic_token(semantic_tokens, pre_line, pre_start, parser);
-            }
-            Self::MadEnvironment(env) => {
-                env.to_semantic_token(semantic_tokens, pre_line, pre_start, parser);
-            }
-            Self::Exit(exit) => {
-                semantic_tokens.push(get_range_token(exit, 0, pre_line, pre_start, parser));
-
-                for lines in parser.lexer.lines()[exit.start.line() + 1..].windows(2) {
-                    let length = lines[1] - lines[0];
-                    semantic_tokens.push(SemanticToken {
-                        delta_line: 1,
-                        delta_start: 0,
-                        length: length as u32,
-                        token_type: 2,
-                        token_modifiers_bitset: 0,
-                    });
+                Token::MultilineComment(ranges) => {
+                    parser.advance();
+                    for range in ranges {
+                        comments.push(range);
+                    }
                 }
+                _ => break, // Stop when we encounter a non-comment token
             }
-            _ => {}
         }
-    }
 
-    pub(crate) fn get_highlights(
-        &self,
-        pos: &CursorPosition,
-        parser: &Parser,
-    ) -> Vec<(CursorPosition, CursorPosition)> {
-        match self {
-            Expression::Label(_) => vec![],
-            Expression::Macro(m) => m.get_highlights(pos, parser),
-            Expression::Assignment(_) => vec![],
-            Expression::String(_) => vec![],
-            Expression::Comment(_) => vec![],
-            Expression::Symbol(_) => vec![],
-            Expression::MadGeneric(_) => vec![],
-            Expression::MadEnvironment(_) => vec![],
-            Expression::Exit(_) => vec![],
-            Expression::Operator(_) => vec![],
-            Expression::Exec(_) => vec![],
-            Expression::TokenExp(_) => vec![],
-            Expression::If(_) => vec![],
-            Expression::Noop(_) => vec![],
+        if comments.is_empty() {
+            None
+        } else {
+            Some(Expression::Comment((
+                comments.first().unwrap().0,
+                comments.last().unwrap().1,
+            )))
         }
     }
 }

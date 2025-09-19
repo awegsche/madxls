@@ -33,34 +33,17 @@ impl Label {
         None
     }
 
-    pub(crate) fn accept<V: crate::visitor::Visitor>(&self, visitor: &mut V) {
-        visitor.visit_label(self);
+    pub(crate) fn accept<V: crate::visitor::Visitor>(
+        &self,
+        visitor: &mut V,
+        parser: &crate::parser::Parser,
+    ) {
+        visitor.visit_label(self, parser);
     }
 }
 
 impl HasRange for Label {
     fn get_range(&self) -> (crate::lexer::CursorPosition, crate::lexer::CursorPosition) {
         (self.name.get_range().0, self.command.get_range().1)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::parser::Expression;
-
-    use super::*;
-
-    #[test]
-    fn parse_label() {
-        let parser = Parser::from_bytes(b"label: twiss, sequence=lhcb;".to_vec(), None);
-
-        if let Expression::Label(label) = &parser.get_elements()[0] {
-            assert_eq!(parser.get_element_str(&label.name), "label");
-            assert_eq!(
-                parser.get_element_str(&label.command),
-                "twiss, sequence=lhcb"
-            );
-            assert_eq!(parser.labels.keys().collect::<Vec<_>>(), vec![b"label"]);
-        }
     }
 }

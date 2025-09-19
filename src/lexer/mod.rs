@@ -102,6 +102,18 @@ impl Lexer {
         }
     }
 
+    pub fn get_length_range(&self, range: &tower_lsp::lsp_types::Range) -> usize {
+        let start = range.start;
+        let end = range.end;
+
+        if start.line == end.line {
+            (end.character - start.character) as usize
+        } else {
+            self.lines[end.line as usize] - self.lines[start.line as usize] + end.character as usize
+                - start.character as usize
+        }
+    }
+
     /// advancing the CursorPosition `cursor` by `by` characters, taking into account line breaks
     pub fn advance_cursor(&self, cursor: &mut CursorPosition, by: usize) {
         *cursor += by;
@@ -380,6 +392,8 @@ impl Display for Lexer {
 
 #[cfg(test)]
 mod tests {
+    use tower_lsp::lsp_types::Range;
+
     use super::*;
 
     pub fn check_string(buffer: &[u8], tokens: &[&str]) {
@@ -554,5 +568,21 @@ mod tests {
             eprintln!("Expected Equal, found {:?}", tokens[0]);
             assert!(false, "Expected Equal");
         }
+    }
+
+    #[test]
+    fn get_length_range() {
+        let lexer = Lexer::from_str("first;\nsecond");
+        let range = Range {
+            start: Position::new(0, 0),
+            end: Position::new(0, 5),
+        };
+        assert_eq!(lexer.get_length_range(&range), 5);
+
+        let range = Range {
+            start: Position::new(0, 0),
+            end: Position::new(1, 5),
+        };
+        assert_eq!(lexer.get_length_range(&range), 12);
     }
 }

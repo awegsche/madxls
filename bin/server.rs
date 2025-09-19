@@ -3,41 +3,35 @@ use std::sync::Arc;
 use clap::Parser;
 use dashmap::DashMap;
 use log::LevelFilter;
-use log4rs::append::file::FileAppender;
-use log4rs::config::Appender;
-use log4rs::config::Root;
-use log4rs::encode::pattern::PatternEncoder;
-use log4rs::Config;
-use parser::Problem;
-use parser::LEGEND_TYPE;
+use log4rs::{
+    append::file::FileAppender,
+    config::{Appender, Root},
+    encode::pattern::PatternEncoder,
+    Config,
+};
+use madxls::document;
+use madxls::parser::{Problem, LEGEND_TYPE};
 use tower_lsp::jsonrpc::Result;
-use tower_lsp::lsp_types::*;
-use tower_lsp::{Client, LanguageServer, LspService, Server};
-
-use madxls::*;
-
-#[derive(Parser, Debug)]
-#[command(version, about)]
-struct Args {
-    #[arg(long)]
-    pub debug_file: Option<String>,
-}
+use tower_lsp::{
+    lsp_types::{
+        CompletionItem, CompletionOptions, CompletionParams, CompletionResponse,
+        DidChangeTextDocumentParams, DidOpenTextDocumentParams, DocumentFilter, DocumentHighlight,
+        DocumentHighlightOptions, DocumentHighlightParams, Hover, HoverParams,
+        HoverProviderCapability, InitializeParams, InitializeResult, InitializedParams,
+        MessageType, OneOf, Position, SemanticTokensFullOptions, SemanticTokensLegend,
+        SemanticTokensOptions, SemanticTokensParams, SemanticTokensRegistrationOptions,
+        SemanticTokensResult, SemanticTokensServerCapabilities, ServerCapabilities,
+        StaticRegistrationOptions, TextDocumentRegistrationOptions, TextDocumentSyncCapability,
+        TextDocumentSyncKind, Url, WillSaveTextDocumentParams, WorkDoneProgressOptions,
+    },
+    Client, LanguageServer, LspService, Server,
+};
 
 #[tokio::main]
 async fn main() {
-    //debug::debug_parser();
-    //
-    let args = Args::parse();
-
-    if let Some(file) = args.debug_file {
-        debug::print_ast(file);
-        return;
-    }
-
-    //return;
     let logfile = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
-        .build("/home/awegsche/logs/logfile.log")
+        .build("logfile.log")
         .unwrap();
 
     let config = Config::builder()
@@ -143,13 +137,7 @@ impl LanguageServer for Backend {
         if let Some(doc) = self
             .documents
             .get(&params.text_document_position_params.text_document.uri)
-        {
-            //let hi = doc.get_document_highlights(&params.text_document_position_params.position);
-            //if let Ok(Some(h)) = &hi {
-            //    log::debug!("get some highlights: {}", h.len());
-            //}
-            //return hi;
-        }
+        {}
         Ok(None)
     }
 
@@ -158,7 +146,6 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        log::info!("did open");
         self.client
             .log_message(MessageType::INFO, "did open!")
             .await;
@@ -230,7 +217,7 @@ impl LanguageServer for Backend {
     ) -> Result<Option<SemanticTokensResult>> {
         log::info!("semantic tokens full");
         if let Some(document) = self.documents.get(&params.text_document.uri) {
-            //return document.get_semantic_tokens();
+            return document.get_semantic_tokens();
         }
         Ok(None)
     }
@@ -290,14 +277,8 @@ fn get_completions(
     url: &Url,
     documents: &Arc<DashMap<Url, document::Document>>,
 ) {
+    let _ = items;
     if let Some(doc) = documents.get(url) {}
-}
-
-fn diagnostics_from_problems(
-    problems: &[Problem],
-    parser: &crate::parser::Parser,
-) -> Vec<Diagnostic> {
-    problems.iter().map(|p| p.to_diagnostic(parser)).collect()
 }
 
 async fn run_server() {

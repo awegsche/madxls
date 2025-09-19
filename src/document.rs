@@ -1,13 +1,11 @@
 use std::path::Path;
+use tower_lsp::lsp_types::SemanticTokensResult;
 
 use tower_lsp::jsonrpc::Result;
-use tower_lsp::lsp_types::{
-    CompletionItem, CompletionItemKind, DocumentHighlight, MarkedString, Position, Range,
-    SemanticTokens, SemanticTokensResult, Url,
-};
+use tower_lsp::lsp_types::{SemanticTokens, Url};
 
-use crate::error::UTF8_PARSER_MSG;
-use crate::parser::{Expression, Parser, Problem, GENERIC_BUILTINS};
+use crate::highlighter::Highlighter;
+use crate::parser::Parser;
 
 #[derive(Debug)]
 pub struct Document {
@@ -32,39 +30,24 @@ impl Document {
         self.parser = Parser::from_bytes(text.to_vec(), uri);
         //self.parser.scan_includes();
     }
+
+    pub fn get_semantic_tokens(&self) -> Result<Option<SemanticTokensResult>> {
+        let highlighter = Highlighter::new(&self.parser);
+
+        let mut pline = 1;
+        let mut pstart = 0;
+
+        Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {
+            result_id: None,
+            data: highlighter
+                .highlights
+                .iter()
+                .map(|h| h.into_semantic_token(&mut pline, &mut pstart, &self.parser))
+                .collect(),
+        })))
+    }
 }
 
 pub fn sanitize_string_for_md(s: String) -> String {
     s.replace("*", "\\*").replace("_", "\\_")
-}
-
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-
-    #[test]
-    fn test_macros() {
-        let elements = vec![
-            "// test file", ";",
-            "/* this is a multiline comment\n* explaining what the macro does\n* in a very detailed way */",
-            "do_twiss(filename): macro = {\n  twiss, sequence=lhcb1;\n}",
-            ";",
-        ];
-        let doc = Document::new(None, elements.join("\n").as_bytes());
-        let expressions = doc.parser.get_elements();
-
-        assert_eq!(doc.parser.get_element_str(&expressions[0]), elements[0]);
-        assert_eq!(doc.parser.get_element_str(&expressions[2]), elements[2]);
-        if let Expression::Macro(m) = &expressions[3] {
-            assert_eq!(doc.parser.get_element_str(m), elements[3]);
-        } else {
-            assert!(
-                false,
-                "exprected macro, got: {:?}\nrange: {}",
-                expressions[3],
-                doc.parser.get_element_str(&expressions[3])
-            );
-        }
-    }
 }

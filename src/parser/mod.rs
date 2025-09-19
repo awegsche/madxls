@@ -45,14 +45,14 @@ pub struct Parser {
 }
 
 pub const LEGEND_TYPE: &[SemanticTokenType] = &[
-    SemanticTokenType::TYPE,      // 0
-    SemanticTokenType::STRING,    // 1
-    SemanticTokenType::COMMENT,   // 2
-    SemanticTokenType::OPERATOR,  // 3
-    SemanticTokenType::FUNCTION,  // 4
-    SemanticTokenType::PARAMETER, // 5
+    SemanticTokenType::KEYWORD,   // 0
+    SemanticTokenType::TYPE,      // 1
+    SemanticTokenType::CLASS,     // 2
+    SemanticTokenType::FUNCTION,  // 3
+    SemanticTokenType::PARAMETER, // 4
+    SemanticTokenType::COMMENT,   // 5
     SemanticTokenType::MACRO,     // 6
-    SemanticTokenType::NAMESPACE, // 7
+    SemanticTokenType::STRING,    // 7
     SemanticTokenType::KEYWORD,   // 8
     SemanticTokenType::KEYWORD,   // 9
 ];

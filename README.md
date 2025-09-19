@@ -52,13 +52,10 @@ The scanner is the most stable and feature-complete component:
 
 ```bash
 # Analyze a single file
-madx_scanner analyze path/to/your/script.madx
+madx_scanner --input-file path/to/your/script.madx
 
-# Analyze a directory
-madx_scanner analyze path/to/project/
-
-# Generate detailed metrics
-madx_scanner metrics path/to/your/script.madx
+# Analyze a single file, print highlights and code metrics
+madx_scanner --input-file path/to/your/script.madx --highlight --metrics
 ```
 
 ### LSP Server (Under Development)
@@ -87,7 +84,7 @@ Configure using your preferred LSP client (e.g., `lsp-mode` or `eglot`).
 
 ## SonarQube Integration
 
-The scanner includes a SonarQube plugin that enables continuous code quality monitoring:
+The scanner integrates via a dedicated [SonarQube plugin](https://github.com/awegsche/sonar-madx) that enables continuous code quality monitoring:
 
 - **On-Premise SonarQube**: Full support for self-hosted SonarQube instances
 - **Cloud Support**: Currently limited due to plugin deployment constraints (coming soon)
@@ -98,7 +95,6 @@ We welcome contributions! The project is actively developed, and we're particula
 - LSP server stability improvements
 - Additional code quality rules
 - Enhanced editor integrations
-- SonarQube cloud deployment solutions
 
 ## Roadmap
 

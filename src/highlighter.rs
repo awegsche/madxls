@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use tower_lsp::lsp_types::Range;
+use tower_lsp::lsp_types::{Range, SemanticToken};
 
 use crate::{
     lexer::{print_range, CursorPosition},
@@ -19,16 +19,14 @@ pub enum Highlight {
     String(Range),
 }
 
-pub struct Highlighter<'a> {
+pub struct Highlighter {
     pub highlights: Vec<Highlight>,
-    pub parser: &'a Parser,
 }
 
-impl<'a> Highlighter<'a> {
-    pub fn new(parser: &'a Parser) -> Self {
+impl Highlighter {
+    pub fn new(parser: &Parser) -> Self {
         let mut highlighter = Self {
             highlights: Vec::new(),
-            parser,
         };
 
         highlighter.visit_parser(parser);
@@ -36,7 +34,7 @@ impl<'a> Highlighter<'a> {
     }
 }
 
-impl Visitor for Highlighter<'_> {
+impl Visitor for Highlighter {
     fn visit_macro(&mut self, macro_exp: &crate::parser::Macro, parser: &Parser) {
         self.highlights.push(Highlight::Type(
             parser.lexer.cursor_range_to_text_range(&macro_exp.name),
@@ -53,6 +51,11 @@ impl Visitor for Highlighter<'_> {
     fn visit_exec(&mut self, exec_exp: &crate::parser::MadExec, parser: &Parser) {
         self.highlights.push(Highlight::Keyword(
             parser.lexer.cursor_range_to_text_range(&exec_exp.name),
+        ));
+        self.highlights.push(Highlight::Function(
+            parser
+                .lexer
+                .cursor_range_to_text_range(&exec_exp.get_callee()),
         ));
     }
 
@@ -74,6 +77,12 @@ impl Visitor for Highlighter<'_> {
         self.highlights.push(Highlight::Function(
             parser.lexer.cursor_range_to_text_range(&generic.name),
         ));
+
+        for kw in generic.args.iter() {
+            self.highlights.push(Highlight::Parameter(
+                parser.lexer.cursor_range_to_text_range(&kw.attribute),
+            ));
+        }
     }
 
     fn visit_call(&mut self, call_exp: &crate::parser::MadCall, parser: &Parser) {
@@ -111,5 +120,60 @@ impl Display for Highlight {
             Highlight::Constant(range) => write!(f, "hi co | {}", print_range(range)),
             Highlight::String(range) => write!(f, "hi st | {}", print_range(range)),
         }
+    }
+}
+
+pub fn get_range_token(
+    range: Range,
+    token_type: u32,
+    pline: &mut u32,
+    pstart: &mut u32,
+    parser: &Parser,
+) -> SemanticToken {
+    let line = range.start.line;
+    let start = range.start.character;
+    let delta_line = line - *pline;
+    let delta_start = if delta_line == 0 {
+        start - *pstart
+    } else {
+        start
+    };
+
+    let length = parser.lexer.get_length_range(&range) as u32;
+
+    let token = SemanticToken {
+        delta_line,
+        delta_start,
+        length,
+        token_type,
+        token_modifiers_bitset: 0,
+    };
+
+    log::debug!("token: {:#?}", token);
+
+    *pline = line;
+    *pstart = start;
+
+    token
+}
+
+impl Highlight {
+    pub fn into_semantic_token(
+        &self,
+        pline: &mut u32,
+        pstart: &mut u32,
+        parser: &Parser,
+    ) -> SemanticToken {
+        let (kind, range) = match self {
+            Highlight::Keyword(range) => (0, range),
+            Highlight::Type(range) => (1, range),
+            Highlight::Class(range) => (2, range),
+            Highlight::Function(range) => (3, range),
+            Highlight::Parameter(range) => (4, range),
+            Highlight::Comment(range) => (5, range),
+            Highlight::Constant(range) => (6, range),
+            Highlight::String(range) => (7, range),
+        };
+        get_range_token(*range, kind, pline, pstart, parser)
     }
 }

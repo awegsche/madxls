@@ -22,7 +22,7 @@ impl Label {
                 // try parsing as MAdGeneric
                 if let Some(mad_generic) = MadGeneric::parse(parser) {
                     return Some(Self {
-                        name: name,
+                        name,
                         command: mad_generic,
                     });
                 }

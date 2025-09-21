@@ -44,19 +44,6 @@ impl MadExec {
         None
     }
 
-    pub(crate) fn get_label<'a>(
-        &'a self,
-        pos: &CursorPosition,
-        parser: &'a super::Parser,
-    ) -> Option<&'a [u8]> {
-        let range = self.callee.get_range();
-        if &range.0 < pos && pos < &range.1 {
-            Some(parser.get_element_bytes(&range))
-        } else {
-            None
-        }
-    }
-
     pub fn get_callee(&self) -> (CursorPosition, CursorPosition) {
         self.callee.get_range()
     }

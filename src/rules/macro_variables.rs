@@ -8,6 +8,7 @@ use crate::{
     visitor::Visitor,
 };
 
+#[derive(Debug, Clone)]
 pub enum MacroVarProblem {
     ExistWhileDef(Range, Range),
     ExistsWhileCall(Range, Range),

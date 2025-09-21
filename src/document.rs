@@ -1,11 +1,12 @@
 use std::path::Path;
-use tower_lsp::lsp_types::SemanticTokensResult;
+use tower_lsp::lsp_types::{Diagnostic, SemanticTokensResult};
 
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::{SemanticTokens, Url};
 
 use crate::highlighter::Highlighter;
 use crate::parser::Parser;
+use crate::rules::issues::Issues;
 
 #[derive(Debug)]
 pub struct Document {
@@ -45,6 +46,11 @@ impl Document {
                 .map(|h| h.into_semantic_token(&mut pline, &mut pstart, &self.parser))
                 .collect(),
         })))
+    }
+
+    pub fn get_diagnostics(&self) -> Vec<Diagnostic> {
+        let issues = Issues::from_parser(&self.parser);
+        issues.to_diagnostics()
     }
 }
 

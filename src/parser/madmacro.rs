@@ -86,10 +86,9 @@ impl Macro {
     pub fn read_parenthesis(
         parser: &mut Parser,
     ) -> Option<(CursorPosition, Vec<Token>, CursorPosition)> {
-        let mut start = CursorPosition::default();
-        let mut end = CursorPosition::default();
         let mut tokens = Vec::new();
 
+        let mut start = CursorPosition::default();
         if let Some(Token::ParentOpen(parenopen)) = parser.peek_token() {
             start = *parenopen;
             parser.advance();
@@ -101,7 +100,7 @@ impl Macro {
             parser.advance();
             match token {
                 Token::ParentClose(parenclose) => {
-                    end = parenclose;
+                    let end = parenclose;
 
                     return Some((start, tokens, end));
                 }

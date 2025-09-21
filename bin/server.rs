@@ -115,34 +115,8 @@ impl LanguageServer for Backend {
             .await;
     }
 
-    async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
-        log::info!("completion");
-        let uri = params.text_document_position.text_document.uri;
-        let mut items = Vec::new();
-
-        get_completions(
-            &mut items,
-            Some(params.text_document_position.position),
-            &uri,
-            &self.documents,
-        );
-        Ok(Some(CompletionResponse::Array(items)))
-    }
-
-    async fn document_highlight(
-        &self,
-        params: DocumentHighlightParams,
-    ) -> Result<Option<Vec<DocumentHighlight>>> {
-        log::debug!("highlights triggered");
-        if let Some(doc) = self
-            .documents
-            .get(&params.text_document_position_params.text_document.uri)
-        {}
-        Ok(None)
-    }
-
-    async fn will_save(&self, params: WillSaveTextDocumentParams) {
-        self.resubmit_diagnostics(&params.text_document.uri).await;
+    async fn shutdown(&self) -> Result<()> {
+        Ok(())
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
@@ -154,18 +128,8 @@ impl LanguageServer for Backend {
             let document =
                 document::Document::new(Some(uri.clone()), params.text_document.text.as_bytes());
 
-            // check the includes
-            /*
-            let includes = document.parser.includes.clone();
-            let docs = self.documents.clone();
-            tokio::spawn(async move {
-                for incl in includes.into_iter() {
-                    reload_includes(incl, &docs);
-                }
-            });
-            */
-
             self.documents.insert(uri.clone(), document);
+            self.resubmit_diagnostics(uri).await;
         }
     }
 
@@ -186,6 +150,22 @@ impl LanguageServer for Backend {
             */
         }
         self.resubmit_diagnostics(&params.text_document.uri).await;
+    }
+
+    async fn will_save(&self, params: WillSaveTextDocumentParams) {
+        self.resubmit_diagnostics(&params.text_document.uri).await;
+    }
+
+    async fn document_highlight(
+        &self,
+        params: DocumentHighlightParams,
+    ) -> Result<Option<Vec<DocumentHighlight>>> {
+        log::debug!("highlights triggered");
+        if let Some(doc) = self
+            .documents
+            .get(&params.text_document_position_params.text_document.uri)
+        {}
+        Ok(None)
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
@@ -222,8 +202,18 @@ impl LanguageServer for Backend {
         Ok(None)
     }
 
-    async fn shutdown(&self) -> Result<()> {
-        Ok(())
+    async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
+        log::info!("completion");
+        let uri = params.text_document_position.text_document.uri;
+        let mut items = Vec::new();
+
+        get_completions(
+            &mut items,
+            Some(params.text_document_position.position),
+            &uri,
+            &self.documents,
+        );
+        Ok(Some(CompletionResponse::Array(items)))
     }
 }
 
@@ -258,15 +248,11 @@ impl Backend {
         log::debug!("try resubmit");
 
         if let Some(doc) = self.documents.get(uri) {
-            ////let problems = doc.get_diagnostics();
+            let problems = doc.get_diagnostics();
 
-            //self.client
-            //    .publish_diagnostics(
-            //        uri.clone(),
-            //        diagnostics_from_problems(&problems, &doc.parser),
-            //        None,
-            //    )
-            //    .await;
+            self.client
+                .publish_diagnostics(uri.clone(), problems, None)
+                .await;
         }
     }
 }

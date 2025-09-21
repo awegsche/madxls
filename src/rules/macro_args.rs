@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 use crate::{lexer::CursorPosition, parser::Parser, visitor::Visitor};
 
+#[derive(Debug, Clone)]
 pub enum MacroArgProblem {
     TooShort(tower_lsp::lsp_types::Range),
     Unused(tower_lsp::lsp_types::Range),

@@ -1,9 +1,4 @@
-use std::{
-    collections::HashMap,
-    error::Error,
-    fmt::Display,
-    path::{self, PathBuf},
-};
+use std::{collections::HashMap, error::Error, fmt::Display, path::PathBuf};
 
 use tower_lsp::lsp_types::{Range, SemanticTokenType, Url};
 
@@ -150,7 +145,7 @@ impl Parser {
 
     pub fn get_subparser(&self, uri: &str) -> Option<&Parser> {
         // check relative to self.uri
-        if let Some(mut self_uri) = self.get_subparser_uri(uri) {
+        if let Some(self_uri) = self.get_subparser_uri(uri) {
             if let Some(subparser) = self.subparsers.get(&self_uri) {
                 return Some(subparser);
             }
@@ -270,30 +265,6 @@ impl Display for Parser {
             }
         }
         Ok(())
-    }
-}
-
-/// we assume that madx scripts are runnable in their respective working directory,
-/// so we search for includes there.
-///
-/// If this fails, we return the path as-is (i.e. relative to current working dir) nevertheless,
-/// because we are very permissive here.
-/// This might, of course, lead to false positives which could be problematic for the workflow.
-///
-/// # Params:
-/// * `uri` - the Url of the parent document (.madx script)
-/// * `bytes` - the bytes from `Parser::get_element_bytes()` from the `"call"` `MadGeneric`
-fn get_path_relative_to_parent(uri: Option<&Url>, bytes: Vec<u8>) -> Option<PathBuf> {
-    let call_path = String::from_utf8(bytes).ok()?;
-    if let Some(uri) = uri {
-        let root = uri.to_file_path().ok()?.parent()?.to_path_buf();
-        let p = root.join(call_path).canonicalize();
-        println!("{:?}", p);
-        p.ok()
-    } else {
-        let pb: PathBuf = call_path.into();
-        println!("no base uri: {}", pb.display());
-        pb.canonicalize().ok()
     }
 }
 

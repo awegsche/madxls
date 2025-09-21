@@ -1,11 +1,6 @@
-use std::{
-    collections::HashMap,
-    error::Error,
-    fmt::Display,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashMap, error::Error, fmt::Display, path::PathBuf};
 
-use tower_lsp::lsp_types::{Position, SemanticToken, SemanticTokenType, Url};
+use tower_lsp::lsp_types::{Range, SemanticTokenType, Url};
 
 use crate::{
     error::{MadxLsError, UTF8_PARSER_MSG},
@@ -15,6 +10,7 @@ use crate::{
 pub mod assignment;
 pub mod expression;
 pub mod label;
+pub mod madcall;
 pub mod madenvironment;
 pub mod madexec;
 pub mod madgeneric;
@@ -25,6 +21,7 @@ pub mod problem;
 pub use assignment::*;
 pub use expression::*;
 pub use label::*;
+pub use madcall::*;
 pub use madenvironment::*;
 pub use madexec::*;
 pub use madgeneric::*;
@@ -37,21 +34,20 @@ pub struct Parser {
     pub uri: Option<Url>,
     pub lexer: Lexer,
     elements: Vec<Expression>,
-    pub labels: HashMap<Vec<u8>, usize>,
     pub position: usize,
-    pub includes: Vec<Url>,
-    pub problems: Vec<Problem>,
+    subparsers: HashMap<Url, Parser>,
+    missing_files: Vec<Range>,
 }
 
 pub const LEGEND_TYPE: &[SemanticTokenType] = &[
-    SemanticTokenType::TYPE,      // 0
-    SemanticTokenType::STRING,    // 1
-    SemanticTokenType::COMMENT,   // 2
-    SemanticTokenType::OPERATOR,  // 3
-    SemanticTokenType::FUNCTION,  // 4
-    SemanticTokenType::PARAMETER, // 5
+    SemanticTokenType::KEYWORD,   // 0
+    SemanticTokenType::TYPE,      // 1
+    SemanticTokenType::CLASS,     // 2
+    SemanticTokenType::FUNCTION,  // 3
+    SemanticTokenType::PARAMETER, // 4
+    SemanticTokenType::COMMENT,   // 5
     SemanticTokenType::MACRO,     // 6
-    SemanticTokenType::NAMESPACE, // 7
+    SemanticTokenType::STRING,    // 7
     SemanticTokenType::KEYWORD,   // 8
     SemanticTokenType::KEYWORD,   // 9
 ];
@@ -66,8 +62,11 @@ impl Parser {
     }
 
     pub fn from_path<P: AsRef<std::path::Path>>(path: P) -> std::io::Result<Self> {
-        let lexer = Lexer::open(path)?;
-        Ok(Self::from_lexer(None, lexer))
+        let lexer = Lexer::open(path.as_ref())?;
+        Ok(Self::from_lexer(
+            Some(Url::from_file_path(path.as_ref().canonicalize().unwrap()).unwrap()),
+            lexer,
+        ))
     }
 
     pub fn from_lexer(uri: Option<Url>, lexer: Lexer) -> Self {
@@ -77,13 +76,11 @@ impl Parser {
             uri,
             lexer,
             elements: Vec::new(),
-            labels: HashMap::new(),
-            includes: Vec::new(),
             position: 0,
-            problems: Vec::new(),
+            subparsers: HashMap::new(),
+            missing_files: Vec::new(),
         };
         parser.parse_elements();
-        parser.scan_includes();
         parser
     }
 
@@ -108,79 +105,23 @@ impl Parser {
         //log::debug!("tokens: {:#?}", self.tokens);
 
         self.elements.clear();
-        self.labels.clear();
         self.parse_elements();
-    }
-
-    pub fn scan_includes(&mut self) {
-        log::info!("scanning includes");
-
-        let call_cmds = self.elements.iter().filter_map(|e| match e {
-            Expression::MadGeneric(g) => {
-                if g.match_name == b"call" {
-                    Some(g)
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        });
-
-        log::debug!("call commands: {}", call_cmds.clone().count());
-
-        self.includes = call_cmds
-            .filter_map(|g| g.args.first()?.value.as_ref())
-            .filter_map(|arg| {
-                get_path_relative_to_parent(
-                    self.uri.as_ref(),
-                    self.get_element_bytes(&**arg)[1..].to_vec(),
-                )
-            })
-            .filter_map(|filename| {
-                if let Some(fname) = filename.extension() {
-                    log::debug!("filename include: {}", filename.display());
-                    if fname == "mad" || fname == "madx" {
-                        if filename.exists() {
-                            return Some(filename);
-                        }
-                    }
-                }
-                None
-            })
-            .filter_map(|filename| Url::from_file_path(filename).ok())
-            .collect::<Vec<_>>();
     }
 
     fn parse_elements(&mut self) {
         while let Some(expr) = Assignment::parse(self) {
-            match &expr {
-                Expression::Label(label) => {
-                    self.labels.insert(
-                        self.get_element_bytes(&label.name)
-                            .to_ascii_lowercase()
-                            .to_vec(),
-                        self.elements.len(),
-                    );
+            if let Expression::Call(call) = &expr {
+                if let Some(uri) = call.get_filename(self) {
+                    let url = self.get_subparser_uri(&uri).unwrap();
+                    if let Ok(mut subparser) = Parser::open(url.clone()) {
+                        subparser.parse_elements();
+                        self.subparsers.insert(url, subparser);
+                    } else {
+                        self.missing_files
+                            .push(self.lexer.cursor_range_to_text_range(&call.get_range()));
+                    }
                 }
-                Expression::Assignment(assignment) => {
-                    self.labels.insert(
-                        self.get_element_bytes(&*assignment.lhs)
-                            .to_ascii_lowercase()
-                            .to_vec(),
-                        self.elements.len(),
-                    );
-                }
-                Expression::Macro(m) => {
-                    self.labels.insert(
-                        self.get_element_bytes(&m.name)
-                            .to_ascii_lowercase()
-                            .to_vec(),
-                        self.elements.len(),
-                    );
-                }
-                _ => {}
             }
-            //expr.get_problems(&mut self.problems);
             self.elements.push(expr);
         }
     }
@@ -191,6 +132,25 @@ impl Parser {
 
     pub fn get_elements(&self) -> &Vec<Expression> {
         &self.elements
+    }
+
+    fn get_subparser_uri(&self, uri: &str) -> Option<Url> {
+        if let Some(mut self_uri) = self.uri.clone() {
+            let path_to_file = PathBuf::from(self_uri.path());
+            self_uri.set_path(path_to_file.parent().unwrap().join(uri).to_str().unwrap());
+            return Some(self_uri);
+        }
+        None
+    }
+
+    pub fn get_subparser(&self, uri: &str) -> Option<&Parser> {
+        // check relative to self.uri
+        if let Some(self_uri) = self.get_subparser_uri(uri) {
+            if let Some(subparser) = self.subparsers.get(&self_uri) {
+                return Some(subparser);
+            }
+        }
+        None
     }
 
     pub fn peek_token(&self) -> Option<&Token> {
@@ -238,6 +198,10 @@ impl Parser {
             }
         }
         None
+    }
+
+    pub fn get_missing_files(&self) -> &Vec<Range> {
+        &self.missing_files
     }
 }
 
@@ -297,33 +261,10 @@ impl Display for Parser {
                 Expression::Exec(_) => writeln!(f, "exec (??)")?,
                 Expression::If(_) => writeln!(f, "if(...) {{ }}")?,
                 Expression::Noop(_) => writeln!(f, "NOOP")?,
+                Expression::Call(_) => writeln!(f, "call (??)")?,
             }
         }
         Ok(())
-    }
-}
-
-/// we assume that madx scripts are runnable in their respective working directory,
-/// so we search for includes there.
-///
-/// If this fails, we return the path as-is (i.e. relative to current working dir) nevertheless,
-/// because we are very permissive here.
-/// This might, of course, lead to false positives which could be problematic for the workflow.
-///
-/// # Params:
-/// * `uri` - the Url of the parent document (.madx script)
-/// * `bytes` - the bytes from `Parser::get_element_bytes()` from the `"call"` `MadGeneric`
-fn get_path_relative_to_parent(uri: Option<&Url>, bytes: Vec<u8>) -> Option<PathBuf> {
-    let call_path = String::from_utf8(bytes).ok()?;
-    if let Some(uri) = uri {
-        let root = uri.to_file_path().ok()?.parent()?.to_path_buf();
-        let p = root.join(call_path).canonicalize();
-        println!("{:?}", p);
-        p.ok()
-    } else {
-        let pb: PathBuf = call_path.into();
-        println!("no base uri: {}", pb.display());
-        pb.canonicalize().ok()
     }
 }
 
@@ -352,39 +293,6 @@ mod tests {
             assert!(mad_generic.match_name == b"option");
         } else {
             assert!(false, "expression: {:#?}\nparser:{:}", string, parser);
-        }
-    }
-
-    /// this test initialises a parser from the string
-    /// "! hello\noption, echo, -warn;" and returns a list of parsed expressions
-    /// those are then converted to semantic tokens using the `to_semantic_token` function
-    #[test]
-    fn semantic_tokens() {
-        let mut parser = Parser::from_str("! hello\ncall, file;");
-        let mut semantic_tokens = Vec::new();
-
-        let mut pstart = 0;
-        let mut pline = 0;
-
-        let p = &mut parser;
-
-        for e in p.get_elements() {
-            e.to_semantic_token(&mut semantic_tokens, &mut pline, &mut pstart, p);
-        }
-    }
-
-    #[test]
-    fn parse_unfinished() {
-        let mut parser = Parser::from_str("call, \n! comment");
-        let mut semantic_tokens = Vec::new();
-
-        let mut pstart = 0;
-        let mut pline = 0;
-
-        let p = &mut parser;
-
-        for e in p.get_elements() {
-            e.to_semantic_token(&mut semantic_tokens, &mut pline, &mut pstart, p);
         }
     }
 

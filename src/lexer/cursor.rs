@@ -1,5 +1,7 @@
-use std::{ops::{AddAssign, Add, SubAssign}, fmt::Display};
-
+use std::{
+    fmt::Display,
+    ops::{Add, AddAssign, Sub, SubAssign},
+};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct CursorPosition {
@@ -36,6 +38,17 @@ impl Add<usize> for CursorPosition {
     }
 }
 
+impl Sub<usize> for CursorPosition {
+    type Output = Self;
+
+    fn sub(self, rhs: usize) -> Self::Output {
+        Self {
+            absolute: self.absolute - rhs,
+            line: self.line,
+        }
+    }
+}
+
 impl Add<usize> for &CursorPosition {
     type Output = CursorPosition;
 
@@ -61,10 +74,7 @@ impl Ord for CursorPosition {
 
 impl CursorPosition {
     pub fn new(absolute: usize, line: usize) -> Self {
-        Self {
-            absolute,
-            line
-        }
+        Self { absolute, line }
     }
 
     pub fn advance_line(&mut self) {
@@ -86,12 +96,16 @@ impl CursorPosition {
 
 impl Default for CursorPosition {
     fn default() -> Self {
-        Self{
+        Self {
             absolute: 0,
-            line: 0
+            line: 0,
         }
     }
 }
 
-
-
+pub fn print_range(range: &tower_lsp::lsp_types::Range) -> String {
+    format!(
+        "({}, {}) -- ({}, {})",
+        range.start.line, range.start.character, range.end.line, range.end.character,
+    )
+}

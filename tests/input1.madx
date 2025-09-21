@@ -1,0 +1,6 @@
+multiply(arg_a, arg_b): macro = {
+    inner = arg_a * arg_b;
+    value, inner;
+}
+    
+

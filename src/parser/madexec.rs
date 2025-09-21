@@ -1,10 +1,10 @@
 use crate::lexer::{CursorPosition, HasRange, Token};
 
-use super::{Expression, Macro, Problem};
+use super::Macro;
 
 #[derive(Debug, Eq, PartialEq, Clone, Default)]
 pub struct MadExec {
-    name: Token,
+    pub name: Token,
     callee: Token,
     parenopen: CursorPosition,
     args: Vec<Token>,
@@ -12,10 +12,6 @@ pub struct MadExec {
 }
 
 impl MadExec {
-    pub(crate) fn get_problems(&self, problems: &mut Vec<Problem>) {
-        problems.push(Problem::MissingCallee(vec![], self.callee.get_range()));
-    }
-
     pub(crate) fn parse(parser: &mut super::Parser) -> Option<MadExec> {
         if let Some(token) = parser.peek_token() {
             if parser.lexer.compare_range(token, b"exec") {
@@ -48,25 +44,16 @@ impl MadExec {
         None
     }
 
-    pub(crate) fn get_label<'a>(
-        &'a self,
-        pos: &CursorPosition,
-        parser: &'a super::Parser,
-    ) -> Option<&'a [u8]> {
-        let range = self.callee.get_range();
-        if &range.0 < pos && pos < &range.1 {
-            Some(parser.get_element_bytes(&range))
-        } else {
-            None
-        }
-    }
-
     pub fn get_callee(&self) -> (CursorPosition, CursorPosition) {
         self.callee.get_range()
     }
 
-    pub(crate) fn accept<V: crate::visitor::Visitor>(&self, visitor: &mut V) {
-        visitor.visit_exec(self);
+    pub(crate) fn accept<V: crate::visitor::Visitor>(
+        &self,
+        visitor: &mut V,
+        parser: &crate::parser::Parser,
+    ) {
+        visitor.visit_exec(self, parser);
     }
 }
 

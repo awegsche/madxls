@@ -1,8 +1,5 @@
 use clap::Parser;
-use madxls::{
-    parser::{self, Problem},
-    visitor::Visitor,
-};
+use madxls::parser::{self};
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -24,38 +21,8 @@ fn main() {
         }
         println!("----------------------------------------\n");
 
-        println!("{} Labels", parser.labels.len());
-        println!("- - - - - - - - - - ");
+        let visitor = madxls::visitor::PrintVisitor::new(&parser);
 
-        for l in parser.labels.iter() {
-            println!("{:?}", l);
-        }
-        println!("----------------------------------------\n");
-
-        println!("{} Problems", parser.problems.len());
-        println!("- - - - - - - - - - ");
-
-        for p in parser.problems.iter() {
-            match p {
-                Problem::MissingCallee(c, range) => {
-                    match parser
-                        .labels
-                        .iter()
-                        .find(|(l, _)| parser.get_element_bytes(range) == **l)
-                    {
-                        None => println!("{:?}, {}", p, parser.get_element_str(range)),
-                        Some(_) => {}
-                    }
-                }
-                _ => {}
-            };
-        }
-
-        let mut visitor = madxls::visitor::PrintVisitor::new(&parser);
-
-        for e in parser.get_elements() {
-            visitor.visit(e);
-        }
         println!("Visitor Output:\n{}", visitor.buffer);
     }
 }

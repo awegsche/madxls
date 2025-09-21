@@ -11,6 +11,11 @@ use crate::error::UTF8_PARSER_MSG;
 
 pub trait HasRange {
     fn get_range(&self) -> (CursorPosition, CursorPosition);
+
+    fn get_lines(&self) -> impl Iterator<Item = usize> {
+        let range = self.get_range();
+        range.0.line()..=range.1.line()
+    }
 }
 
 impl HasRange for (CursorPosition, CursorPosition) {
@@ -84,12 +89,33 @@ impl Lexer {
     }
 
     pub fn cursor_pos_to_text_pos(&self, pos: CursorPosition) -> Position {
-        Position::new(pos.line() as u32, pos.character(&self.lines) as u32)
+        Position::new(pos.line() as u32 + 1, pos.character(&self.lines) as u32)
+    }
+    pub fn cursor_range_to_text_range<R: HasRange>(
+        &self,
+        has_range: &R,
+    ) -> tower_lsp::lsp_types::Range {
+        let range = has_range.get_range();
+        tower_lsp::lsp_types::Range {
+            start: self.cursor_pos_to_text_pos(range.0),
+            end: self.cursor_pos_to_text_pos(range.1),
+        }
+    }
+
+    pub fn get_length_range(&self, range: &tower_lsp::lsp_types::Range) -> usize {
+        let start = range.start;
+        let end = range.end;
+
+        if start.line == end.line {
+            (end.character - start.character) as usize
+        } else {
+            self.lines[end.line as usize] - self.lines[start.line as usize] + end.character as usize
+                - start.character as usize
+        }
     }
 
     /// advancing the CursorPosition `cursor` by `by` characters, taking into account line breaks
     pub fn advance_cursor(&self, cursor: &mut CursorPosition, by: usize) {
-        let by_rest = by;
         *cursor += by;
         while self.lines[cursor.line()] < cursor.absolute() {
             cursor.advance_line()
@@ -114,7 +140,7 @@ impl Lexer {
         self.get_range_bytes(token)
     }
 
-    pub fn get_range_str<R: HasRange>(&self, token: &R) -> Cow<str> {
+    pub fn get_range_str<R: HasRange>(&'_ self, token: &R) -> Cow<'_, str> {
         String::from_utf8_lossy(self.get_range_bytes(token))
     }
 
@@ -229,14 +255,6 @@ impl Lexer {
     }
 
     /// ---- internal reading functions ------------------------------------------------------------
-    fn next_char(&mut self) -> Option<u8> {
-        if self.position.absolute() >= self.buffer.len() {
-            return None;
-        }
-        let c = self.buffer[self.position.absolute()];
-        self.position += 1; // position is now one character ahead
-        Some(c)
-    }
 
     fn peak_char(&self) -> Option<u8> {
         if self.position.absolute() >= self.buffer.len() {
@@ -374,6 +392,8 @@ impl Display for Lexer {
 
 #[cfg(test)]
 mod tests {
+    use tower_lsp::lsp_types::Range;
+
     use super::*;
 
     pub fn check_string(buffer: &[u8], tokens: &[&str]) {
@@ -548,5 +568,21 @@ mod tests {
             eprintln!("Expected Equal, found {:?}", tokens[0]);
             assert!(false, "Expected Equal");
         }
+    }
+
+    #[test]
+    fn get_length_range() {
+        let lexer = Lexer::from_str("first;\nsecond");
+        let range = Range {
+            start: Position::new(0, 0),
+            end: Position::new(0, 5),
+        };
+        assert_eq!(lexer.get_length_range(&range), 5);
+
+        let range = Range {
+            start: Position::new(0, 0),
+            end: Position::new(1, 5),
+        };
+        assert_eq!(lexer.get_length_range(&range), 12);
     }
 }

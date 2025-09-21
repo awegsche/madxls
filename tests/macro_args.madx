@@ -1,0 +1,14 @@
+vars_too_short(y, b): macro = {
+    value, y + b;
+}
+
+bad_replacement(a, arg_b): macro = {
+    value, a + arg_b;
+}
+
+unused(arg_a, arg_b): macro = {
+    value, arg_b;
+}
+
+exec, vars_too_short(1, 2);
+

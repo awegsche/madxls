@@ -1,6 +1,6 @@
-use crate::lexer::{Token, HasRange, CursorPosition};
+use crate::lexer::HasRange;
 
-use super::{Expression, Parser, Problem};
+use super::{Expression, Parser};
 
 #[derive(Debug, PartialEq)]
 pub struct Assignment {
@@ -10,7 +10,6 @@ pub struct Assignment {
 
 impl Assignment {
     pub fn parse(parser: &mut Parser) -> Option<Expression> {
-        
         if let Some(expr) = Expression::parse(parser) {
             if let Some(token) = parser.peek_token() {
                 if !token.is_assignment() {
@@ -24,8 +23,7 @@ impl Assignment {
                         lhs: Box::new(expr),
                         rhs: Some(Box::new(right)),
                     }));
-                }
-                else {
+                } else {
                     return Some(Expression::Assignment(Self {
                         lhs: Box::new(expr),
                         rhs: None,
@@ -37,33 +35,24 @@ impl Assignment {
         None
     }
 
-    pub(crate) fn get_label<'a>(&'a self, pos: &CursorPosition, parser: &'a Parser) -> Option<&[u8]> {
+    pub(crate) fn accept<V: crate::visitor::Visitor>(
+        &self,
+        visitor: &mut V,
+        parser: &crate::parser::Parser,
+    ) {
+        visitor.visit_assignment_lhs(self.lhs.as_ref(), parser);
+        self.lhs.accept(visitor, parser);
         if let Some(rhs) = &self.rhs {
-            return rhs.get_label(pos, parser);
-        }
-        None
-    }
-
-    pub(crate) fn get_problems(&self, problems: &mut Vec<Problem>) {
-        if let Some(e) = &self.rhs {
-            e.get_problems(problems);
-        }
-    }
-
-    pub(crate) fn accept<V: crate::visitor::Visitor>(&self, visitor: &mut V) {
-        self.lhs.accept(visitor);
-        if let Some(rhs) = &self.rhs {
-            rhs.accept(visitor);
+            rhs.accept(visitor, parser);
         }
     }
 }
 
-impl HasRange for Assignment{
+impl HasRange for Assignment {
     fn get_range(&self) -> (crate::lexer::CursorPosition, crate::lexer::CursorPosition) {
         if let Some(rhs) = self.rhs.as_ref() {
             (self.lhs.get_range().0, rhs.get_range().1)
-        }
-        else {
+        } else {
             self.lhs.get_range()
         }
     }
@@ -81,7 +70,10 @@ mod tests {
         if let Expression::Assignment(assignment) = &parser.get_elements()[0] {
             assert_eq!(parser.get_element_bytes(assignment), b"a = 1");
             assert_eq!(parser.get_element_bytes(&*assignment.lhs), b"a");
-            assert_eq!(parser.get_element_bytes(&**assignment.rhs.as_ref().unwrap()), b"1");
+            assert_eq!(
+                parser.get_element_bytes(&**assignment.rhs.as_ref().unwrap()),
+                b"1"
+            );
         }
     }
 }
